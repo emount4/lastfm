@@ -6,11 +6,12 @@ import (
 	"time"
 )
 
-func New(port uint16) *http.Server {
+func New(port uint16, telegramWebhook http.Handler) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
+	mux.Handle("POST /telegram/webhook", telegramWebhook)
 
 	return &http.Server{
 		Addr:              fmt.Sprintf(":%d", port),
