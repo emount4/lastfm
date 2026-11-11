@@ -15,7 +15,7 @@ import (
 
 type MusicSearcher interface {
 	Search(context.Context, domain.MusicKind, string) ([]domain.MusicTarget, error)
-	FindTitleVariants(context.Context, domain.MusicTarget) ([]domain.MusicTarget, error)
+	FindVariants(context.Context, domain.MusicTarget) ([]domain.MusicTarget, error)
 }
 
 type ChoiceStore interface {
@@ -26,7 +26,7 @@ type ChoiceStore interface {
 func (h *Group) rankByTitle(ctx context.Context, message webhook.IncomingMessage, kind domain.MusicKind, args, usage string) error {
 	artist, title := splitArtistAndTitle(args)
 	if artist != "" && title != "" {
-		return h.rankWithTitleVariants(ctx, message, domain.MusicTarget{Kind: kind, Artist: artist, Title: title})
+		return h.rankWithVariants(ctx, message, domain.MusicTarget{Kind: kind, Artist: artist, Title: title})
 	}
 
 	query := strings.TrimSpace(strings.Trim(args, "\""))
@@ -49,7 +49,7 @@ func (h *Group) rankByTitle(ctx context.Context, message webhook.IncomingMessage
 	return h.sendChoices(ctx, message, options)
 }
 
-func (h *Group) rankWithTitleVariants(ctx context.Context, message webhook.IncomingMessage, target domain.MusicTarget) error {
+func (h *Group) rankWithVariants(ctx context.Context, message webhook.IncomingMessage, target domain.MusicTarget) error {
 	ranking, err := h.rankings.Rank(ctx, target)
 	if err != nil {
 		return fmt.Errorf("rank %s for Telegram: %w", target.Kind, err)
@@ -57,9 +57,9 @@ func (h *Group) rankWithTitleVariants(ctx context.Context, message webhook.Incom
 	if len(ranking.Entries) != 0 {
 		return h.sendRankingResult(ctx, message, target, ranking)
 	}
-	options, err := h.search.FindTitleVariants(ctx, target)
+	options, err := h.search.FindVariants(ctx, target)
 	if err != nil {
-		return fmt.Errorf("find title variants for Telegram: %w", err)
+		return fmt.Errorf("find music variants for Telegram: %w", err)
 	}
 	switch len(options) {
 	case 0:
@@ -78,8 +78,12 @@ func (h *Group) sendChoices(ctx context.Context, message webhook.IncomingMessage
 	}
 	buttons := make([]telegram.Button, 0, len(options))
 	for index, option := range options {
+		label := option.Artist
+		if option.Title != "" {
+			label += " — " + option.Title
+		}
 		buttons = append(buttons, telegram.Button{
-			Text: option.Artist + " — " + option.Title,
+			Text: label,
 			Data: "wk:" + id + ":" + strconv.Itoa(index),
 		})
 	}

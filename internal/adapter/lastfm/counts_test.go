@@ -41,3 +41,26 @@ func TestPlayCount(t *testing.T) {
 		})
 	}
 }
+
+func TestPlayCountRespectsExplicitYo(t *testing.T) {
+	for _, test := range []struct {
+		kind domain.MusicKind
+		body string
+	}{
+		{domain.Artist, `{"artist":{"name":"Елка","stats":{"userplaycount":"42"}}}`},
+		{domain.Track, `{"track":{"name":"Все","artist":{"name":"Ёлка"},"userplaycount":"42"}}`},
+		{domain.Album, `{"album":{"name":"Всё","artist":"Елка","userplaycount":"42"}}`},
+	} {
+		client := NewClient(doFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(test.body))}, nil
+		}), "test-key")
+		target := domain.MusicTarget{Kind: test.kind, Artist: "Ёлка", Title: "Всё"}
+		if count, err := client.PlayCount(t.Context(), "listener", target); err != nil || count != 0 {
+			t.Fatalf("%s: count = %d, error = %v", test.kind, count, err)
+		}
+		target.Artist, target.Title = "Елка", "Все"
+		if count, err := client.PlayCount(t.Context(), "listener", target); err != nil || count != 42 {
+			t.Fatalf("%s: count = %d, error = %v", test.kind, count, err)
+		}
+	}
+}

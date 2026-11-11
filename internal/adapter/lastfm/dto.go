@@ -62,10 +62,21 @@ type personalPlayCount struct {
 
 type playCountResponse struct {
 	Artist struct {
+		Name  string            `json:"name"`
 		Stats personalPlayCount `json:"stats"`
 	} `json:"artist"`
-	Track personalPlayCount `json:"track"`
-	Album personalPlayCount `json:"album"`
+	Track struct {
+		personalPlayCount
+		Name   string `json:"name"`
+		Artist struct {
+			Name string `json:"name"`
+		} `json:"artist"`
+	} `json:"track"`
+	Album struct {
+		personalPlayCount
+		Name   string `json:"name"`
+		Artist string `json:"artist"`
+	} `json:"album"`
 }
 
 type musicSearchMatch struct {

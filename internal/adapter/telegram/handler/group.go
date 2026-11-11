@@ -21,7 +21,7 @@ type GroupBot interface {
 	AnswerCallback(ctx context.Context, id, text string) error
 	DeleteMessage(ctx context.Context, chatID, messageID int64) error
 	SendStatus(ctx context.Context, chatID, threadID int64, text string) (int64, error)
-	SendPhoto(ctx context.Context, chatID, threadID int64, photo []byte) error
+	SendPhoto(ctx context.Context, chatID, threadID int64, photo []byte, caption string) error
 }
 
 type Group struct {
@@ -59,7 +59,11 @@ func (h *Group) HandleMessage(ctx context.Context, message webhook.IncomingMessa
 			return h.sendPlaying(ctx, message)
 		}
 	case "wka":
-		return h.sendRanking(ctx, message, domain.MusicTarget{Kind: domain.Artist, Artist: args}, "Укажи артиста. Например: wka Radiohead")
+		target := domain.MusicTarget{Kind: domain.Artist, Artist: args}
+		if strings.ContainsAny(args, "еЕ") {
+			return h.rankWithVariants(ctx, message, target)
+		}
+		return h.sendRanking(ctx, message, target, "Укажи артиста. Например: wka Radiohead")
 	case "wktrk":
 		return h.rankByTitle(ctx, message, domain.Track, args, "Формат: wktrk название или wktrk артист - трек")
 	case "wkalb":

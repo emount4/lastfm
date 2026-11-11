@@ -27,7 +27,7 @@ func (f searchFunc) Search(ctx context.Context, kind domain.MusicKind, title str
 	return f(ctx, kind, title)
 }
 
-func (f searchFunc) FindTitleVariants(ctx context.Context, target domain.MusicTarget) ([]domain.MusicTarget, error) {
+func (f searchFunc) FindVariants(ctx context.Context, target domain.MusicTarget) ([]domain.MusicTarget, error) {
 	return f(ctx, target.Kind, target.Title)
 }
 

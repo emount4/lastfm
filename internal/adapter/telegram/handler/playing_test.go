@@ -17,11 +17,12 @@ import (
 	"github.com/emount4/lastfm/internal/adapter/telegram/client"
 	"github.com/emount4/lastfm/internal/adapter/telegram/handler"
 	"github.com/emount4/lastfm/internal/adapter/telegram/webhook"
+	"github.com/emount4/lastfm/internal/application/playing"
 )
 
-type collageFunc func(context.Context) ([]byte, error)
+type collageFunc func(context.Context) (playing.CollageResult, error)
 
-func (f collageFunc) Build(ctx context.Context) ([]byte, error) {
+func (f collageFunc) Build(ctx context.Context) (playing.CollageResult, error) {
 	return f(ctx)
 }
 
@@ -29,9 +30,10 @@ func TestPlayingRemovesStatusBeforeReply(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
 		photo []byte
+		count int
 		last  string
 	}{
-		{name: "photo", photo: []byte("test jpeg"), last: "photo"},
+		{name: "photo", photo: []byte("test jpeg"), count: 3, last: "photo"},
 		{name: "no active listeners", last: "empty"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -73,6 +75,7 @@ func TestPlayingRemovesStatusBeforeReply(t *testing.T) {
 					defer form.RemoveAll()
 					if !slices.Equal(form.Value["chat_id"], []string{"-100123"}) ||
 						!slices.Equal(form.Value["message_thread_id"], []string{"15"}) ||
+						!slices.Equal(form.Value["caption"], []string{"🎧 Что сейчас играет в группе\nСлушателей: 3"}) ||
 						len(form.File["photo"]) != 1 || form.File["photo"][0].Size != int64(len(tt.photo)) {
 						t.Fatalf("unexpected photo form: %+v", form)
 					}
@@ -81,9 +84,9 @@ func TestPlayingRemovesStatusBeforeReply(t *testing.T) {
 				}
 				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body))}, nil
 			})}
-			builder := collageFunc(func(context.Context) ([]byte, error) {
+			builder := collageFunc(func(context.Context) (playing.CollageResult, error) {
 				calls = append(calls, "build")
-				return tt.photo, nil
+				return playing.CollageResult{Photo: tt.photo, ListenerCount: tt.count}, nil
 			})
 			group := handler.NewGroup(client.New(httpClient, "123:test-token"), nil, nil, nil, builder, nil)
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))

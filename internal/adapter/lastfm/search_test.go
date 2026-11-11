@@ -35,7 +35,50 @@ func TestSearchPrefersDistinctExactMatches(t *testing.T) {
 	}
 }
 
-func TestFindTitleVariants(t *testing.T) {
+func TestSearchMatchesEAndYoInOneDirection(t *testing.T) {
+	const body = `{"results":{"trackmatches":{"track":[{"name":"Ёж","artist":"A"},{"name":"Еж","artist":"B"}]}}}`
+	client := NewClient(doFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body))}, nil
+	}), "test-key")
+	for query, count := range map[string]int{"еж": 2, "ёЖ": 1} {
+		matches, err := client.Search(t.Context(), domain.Track, query)
+		if err != nil || len(matches) != count || matches[0].Title != "Ёж" {
+			t.Fatalf("%q: matches = %+v, error = %v", query, matches, err)
+		}
+	}
+}
+
+func TestFindSpellingVariants(t *testing.T) {
+	client := NewClient(doFunc(func(req *http.Request) (*http.Response, error) {
+		query := req.URL.Query()
+		var body string
+		switch query.Get("method") {
+		case "artist.search":
+			body = `{"results":{"artistmatches":{"artist":[{"name":"Ёлка"},{"name":"Елка"},{"name":"Ёлка live"}]}}}`
+		case "artist.getTopAlbums":
+			body = `{"error":6,"message":"Artist not found"}`
+		case "album.search":
+			body = `{"results":{"albummatches":{"album":[{"name":"Всё","artist":"Ёлка"},{"name":"Все","artist":"Другой артист"}]}}}`
+		default:
+			t.Fatalf("unexpected query: %v", query)
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body))}, nil
+	}), "test-key")
+	for _, test := range []struct {
+		query domain.MusicTarget
+		want  domain.MusicTarget
+	}{
+		{domain.MusicTarget{Kind: domain.Artist, Artist: "Елка"}, domain.MusicTarget{Kind: domain.Artist, Artist: "Ёлка"}},
+		{domain.MusicTarget{Kind: domain.Album, Artist: "Елка", Title: "Все"}, domain.MusicTarget{Kind: domain.Album, Artist: "Ёлка", Title: "Всё"}},
+	} {
+		got, err := client.FindVariants(t.Context(), test.query)
+		if err != nil || !slices.Equal(got, []domain.MusicTarget{test.want}) {
+			t.Fatalf("query = %+v, variants = %+v, error = %v", test.query, got, err)
+		}
+	}
+}
+
+func TestFindVariants(t *testing.T) {
 	tests := []struct {
 		name   string
 		target domain.MusicTarget
@@ -80,7 +123,7 @@ func TestFindTitleVariants(t *testing.T) {
 				}, nil
 			}), "test-key")
 
-			got, err := client.FindTitleVariants(t.Context(), tt.target)
+			got, err := client.FindVariants(t.Context(), tt.target)
 			if err != nil || len(got) != len(tt.titles) {
 				t.Fatalf("variants = %+v, error = %v", got, err)
 			}

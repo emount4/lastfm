@@ -21,7 +21,7 @@ func (c *Client) SendStatus(ctx context.Context, chatID, threadID int64, text st
 	return message.ID, nil
 }
 
-func (c *Client) SendPhoto(ctx context.Context, chatID, threadID int64, photo []byte) error {
+func (c *Client) SendPhoto(ctx context.Context, chatID, threadID int64, photo []byte, caption string) error {
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	if err := writer.WriteField("chat_id", strconv.FormatInt(chatID, 10)); err != nil {
@@ -30,6 +30,11 @@ func (c *Client) SendPhoto(ctx context.Context, chatID, threadID int64, photo []
 	if threadID != 0 {
 		if err := writer.WriteField("message_thread_id", strconv.FormatInt(threadID, 10)); err != nil {
 			return fmt.Errorf("encode photo thread ID: %w", err)
+		}
+	}
+	if caption != "" {
+		if err := writer.WriteField("caption", caption); err != nil {
+			return fmt.Errorf("encode photo caption: %w", err)
 		}
 	}
 	file, err := writer.CreateFormFile("photo", "playing.jpg")

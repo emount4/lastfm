@@ -38,6 +38,11 @@ type Card struct {
 	Avatar image.Image
 }
 
+type CollageResult struct {
+	Photo         []byte
+	ListenerCount int
+}
+
 type Collage struct {
 	listeners ListenerReader
 	albums    AlbumCoverReader
@@ -50,13 +55,13 @@ func NewCollage(listeners ListenerReader, albums AlbumCoverReader, avatars Avata
 	return &Collage{listeners: listeners, albums: albums, avatars: avatars, images: images, renderer: renderer}
 }
 
-func (c *Collage) Build(ctx context.Context) ([]byte, error) {
+func (c *Collage) Build(ctx context.Context) (CollageResult, error) {
 	listeners, err := c.listeners.ActiveListeners(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("build collage: get active listeners: %w", err)
+		return CollageResult{}, fmt.Errorf("build collage: get active listeners: %w", err)
 	}
 	if len(listeners) == 0 {
-		return nil, nil
+		return CollageResult{}, nil
 	}
 
 	mediaCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
@@ -92,13 +97,13 @@ func (c *Collage) Build(ctx context.Context) ([]byte, error) {
 	}
 	downloads.Wait()
 	if err := ctx.Err(); err != nil {
-		return nil, fmt.Errorf("build collage: %w", err)
+		return CollageResult{}, fmt.Errorf("build collage: %w", err)
 	}
 	photo, err := c.renderer.Render(cards)
 	if err != nil {
-		return nil, fmt.Errorf("build collage: render cards: %w", err)
+		return CollageResult{}, fmt.Errorf("build collage: render cards: %w", err)
 	}
-	return photo, nil
+	return CollageResult{Photo: photo, ListenerCount: len(cards)}, nil
 }
 
 func (c *Collage) loadCover(ctx context.Context, track domain.NowPlayingTrack) image.Image {
