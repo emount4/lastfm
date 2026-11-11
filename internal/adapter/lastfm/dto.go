@@ -25,3 +25,11 @@ type recentTracksResponse struct {
 		Tracks []json.RawMessage `json:"track"`
 	} `json:"recenttracks"`
 }
+
+type artistInfoResponse struct {
+	Artist struct {
+		Stats struct {
+			UserPlayCount json.Number `json:"userplaycount"`
+		} `json:"stats"`
+	} `json:"artist"`
+}

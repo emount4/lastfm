@@ -25,11 +25,20 @@ func New(httpClient HTTPDoer, token string) *Client {
 }
 
 func (c *Client) SendText(ctx context.Context, chatID, threadID int64, text string) error {
+	return c.sendText(ctx, chatID, threadID, text, "")
+}
+
+func (c *Client) SendHTML(ctx context.Context, chatID, threadID int64, text string) error {
+	return c.sendText(ctx, chatID, threadID, text, "HTML")
+}
+
+func (c *Client) sendText(ctx context.Context, chatID, threadID int64, text, parseMode string) error {
 	payload := struct {
-		ChatID   int64  `json:"chat_id"`
-		ThreadID int64  `json:"message_thread_id,omitempty"`
-		Text     string `json:"text"`
-	}{ChatID: chatID, ThreadID: threadID, Text: text}
+		ChatID    int64  `json:"chat_id"`
+		ThreadID  int64  `json:"message_thread_id,omitempty"`
+		Text      string `json:"text"`
+		ParseMode string `json:"parse_mode,omitempty"`
+	}{ChatID: chatID, ThreadID: threadID, Text: text, ParseMode: parseMode}
 	return c.call(ctx, "sendMessage", payload, nil)
 }
 

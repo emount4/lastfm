@@ -21,6 +21,7 @@ import (
 	"github.com/emount4/lastfm/internal/adapter/telegram/handler"
 	"github.com/emount4/lastfm/internal/adapter/telegram/webhook"
 	"github.com/emount4/lastfm/internal/application/registration"
+	"github.com/emount4/lastfm/internal/application/who"
 	"github.com/emount4/lastfm/internal/config"
 	"github.com/emount4/lastfm/migrations"
 )
@@ -46,7 +47,8 @@ func main() {
 	registrationService := registration.NewService(profiles, accounts)
 	messenger := telegram.New(httpClient, cfg.Telegram.BotToken)
 	privateMessages := handler.NewRegistration(registrationService, messenger, logger)
-	groupMessages := handler.NewGroup(messenger)
+	artistRanking := who.NewArtists(accounts, profiles)
+	groupMessages := handler.NewGroup(messenger, artistRanking)
 	messages := handler.NewRouter(privateMessages, groupMessages)
 	telegramWebhook := webhook.New(cfg.Telegram.WebhookSecret, cfg.Telegram.GroupID, messages, logger)
 	server := httpserver.New(cfg.Port, telegramWebhook)
