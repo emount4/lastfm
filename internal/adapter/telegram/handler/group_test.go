@@ -16,6 +16,7 @@ import (
 	"github.com/emount4/lastfm/internal/adapter/telegram/client"
 	"github.com/emount4/lastfm/internal/adapter/telegram/handler"
 	"github.com/emount4/lastfm/internal/adapter/telegram/webhook"
+	"github.com/emount4/lastfm/internal/application/top"
 	"github.com/emount4/lastfm/internal/application/who"
 	"github.com/emount4/lastfm/internal/domain"
 )
@@ -26,6 +27,12 @@ func (f rankerFunc) Rank(ctx context.Context, target domain.MusicTarget) (who.Ra
 	return f(ctx, target)
 }
 
+type artistTopFunc func(context.Context, domain.Period) (top.ArtistRanking, error)
+
+func (f artistTopFunc) Artists(ctx context.Context, period domain.Period) (top.ArtistRanking, error) {
+	return f(ctx, period)
+}
+
 func TestGroupInfoThroughWebhook(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -34,6 +41,8 @@ func TestGroupInfoThroughWebhook(t *testing.T) {
 		getMeErr error
 		wantText string
 		target   domain.MusicTarget
+		top      bool
+		period   string
 	}{
 		{name: "case insensitive in allowed group", text: " InFo ", chatID: -100123, wantText: "https://t.me/example_bot"},
 		{name: "fallback without username", text: "info", chatID: -100123, getMeErr: errors.New("unavailable"), wantText: "открой личный чат"},
@@ -50,6 +59,11 @@ func TestGroupInfoThroughWebhook(t *testing.T) {
 			target:   domain.MusicTarget{Kind: domain.Album, Artist: "A - B", Title: "Album"},
 			wantText: "Кто слушал «A - B — Album»\n\n<b>42</b> ➠ Анна &amp; Ко\n<b>7</b> ➠ listener\n\nВсего скробблов: 49"},
 		{name: "missing artist", text: "wka", chatID: -100123, wantText: "Укажи артиста"},
+		{name: "group top", text: " ToPaRt ", chatID: -100123, top: true,
+			wantText: "Топ артистов группы · за всё время\n\n<b>121</b> ➠ A &amp; B\n\nПо данным 2 из 3 профилей."},
+		{name: "group top for a period", text: "TOPART 2W", chatID: -100123, top: true, period: "2w",
+			wantText: "Топ артистов группы · за 2w\n\n<b>121</b> ➠ A &amp; B"},
+		{name: "invalid period", text: "topart 0w", chatID: -100123, wantText: "Укажи период"},
 	}
 
 	for _, tt := range tests {
@@ -82,7 +96,7 @@ func TestGroupInfoThroughWebhook(t *testing.T) {
 						t.Fatalf("unexpected Telegram payload: %+v", payload)
 					}
 					wantParseMode := ""
-					if strings.HasPrefix(strings.ToLower(strings.TrimSpace(tt.text)), "wk") {
+					if tt.top || strings.HasPrefix(strings.ToLower(strings.TrimSpace(tt.text)), "wk") {
 						wantParseMode = "HTML"
 					}
 					if payload.ParseMode != wantParseMode {
@@ -108,7 +122,17 @@ func TestGroupInfoThroughWebhook(t *testing.T) {
 					Total: 49,
 				}, nil
 			})
-			group := handler.NewGroup(client.New(httpClient, "123:test-token"), ranker, nil, nil, nil)
+			artistTop := artistTopFunc(func(_ context.Context, period domain.Period) (top.ArtistRanking, error) {
+				if !tt.top || period.String() != tt.period {
+					t.Fatalf("unexpected group top request with period %q", period.String())
+				}
+				return top.ArtistRanking{
+					Entries:          []domain.ArtistScrobbles{{Name: "A & B", Scrobbles: 121}},
+					ProfilesIncluded: 2,
+					ProfilesTotal:    3,
+				}, nil
+			})
+			group := handler.NewGroup(client.New(httpClient, "123:test-token"), ranker, nil, nil, nil, artistTop)
 			messages := handler.NewRouter(private, group)
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 			server := httpserver.New(8080, webhook.New("test-secret", -100123, messages, group, logger))

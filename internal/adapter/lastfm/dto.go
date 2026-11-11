@@ -22,8 +22,14 @@ type profileResponse struct {
 
 type recentTracksResponse struct {
 	RecentTracks struct {
-		Tracks []json.RawMessage `json:"track"`
+		Tracks     []json.RawMessage `json:"track"`
+		Pagination pagination        `json:"@attr"`
 	} `json:"recenttracks"`
+}
+
+type pagination struct {
+	Page       json.Number `json:"page"`
+	TotalPages json.Number `json:"totalPages"`
 }
 
 type recentTrack struct {
@@ -38,6 +44,9 @@ type recentTrack struct {
 	Attrs  struct {
 		NowPlaying string `json:"nowplaying"`
 	} `json:"@attr"`
+	Date struct {
+		Timestamp json.Number `json:"uts"`
+	} `json:"date"`
 }
 
 type trackImage struct {

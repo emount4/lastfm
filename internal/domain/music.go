@@ -20,3 +20,14 @@ type NowPlayingTrack struct {
 	Album    string
 	CoverURL string
 }
+
+type ArtistScrobbles struct {
+	Name      string
+	Scrobbles int64
+}
+
+type Scrobble struct {
+	Artist string
+	Track  string
+	Album  string
+}

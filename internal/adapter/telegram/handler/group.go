@@ -30,14 +30,15 @@ type Group struct {
 	search   MusicSearcher
 	choices  ChoiceStore
 	collage  CollageBuilder
+	top      ArtistTop
 }
 
 type Ranker interface {
 	Rank(context.Context, domain.MusicTarget) (who.Ranking, error)
 }
 
-func NewGroup(bot GroupBot, rankings Ranker, search MusicSearcher, choices ChoiceStore, collage CollageBuilder) *Group {
-	return &Group{bot: bot, rankings: rankings, search: search, choices: choices, collage: collage}
+func NewGroup(bot GroupBot, rankings Ranker, search MusicSearcher, choices ChoiceStore, collage CollageBuilder, top ArtistTop) *Group {
+	return &Group{bot: bot, rankings: rankings, search: search, choices: choices, collage: collage, top: top}
 }
 
 func (h *Group) HandleMessage(ctx context.Context, message webhook.IncomingMessage) error {
@@ -63,6 +64,8 @@ func (h *Group) HandleMessage(ctx context.Context, message webhook.IncomingMessa
 		return h.rankByTitle(ctx, message, domain.Track, args, "Формат: wktrk название или wktrk артист - трек")
 	case "wkalb":
 		return h.rankByTitle(ctx, message, domain.Album, args, "Формат: wkalb название или wkalb артист - альбом")
+	case "topart":
+		return h.sendTopArtists(ctx, message, args)
 	}
 	return nil
 }
@@ -71,6 +74,7 @@ func (h *Group) sendHelp(ctx context.Context, message webhook.IncomingMessage) e
 	const help = "Last.fm в этой группе\n\n" +
 		"• info — показать справку\n" +
 		"• playing — кто что слушает сейчас\n" +
+		"• topart — топ артистов группы, например topart 2w\n" +
 		"• wka Radiohead — кто слушал артиста и сколько раз\n" +
 		"• wktrk Creep — скробблы трека\n" +
 		"• wkalb OK Computer — скробблы альбома\n" +

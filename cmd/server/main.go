@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/tursodatabase/libsql-client-go/libsql"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/emount4/lastfm/internal/adapter/telegram/webhook"
 	"github.com/emount4/lastfm/internal/application/playing"
 	"github.com/emount4/lastfm/internal/application/registration"
+	"github.com/emount4/lastfm/internal/application/top"
 	"github.com/emount4/lastfm/internal/application/who"
 	"github.com/emount4/lastfm/internal/config"
 	"github.com/emount4/lastfm/migrations"
@@ -37,6 +39,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	groupTimezone, err := time.LoadLocation("Europe/Moscow")
+	if err != nil {
+		logger.Error("не удалось загрузить часовой пояс группы", "error", err)
+		os.Exit(1)
+	}
 	renderer, err := collage.NewRenderer()
 	if err != nil {
 		logger.Error("не удалось подготовить шрифты коллажа", "error", err)
@@ -66,7 +73,10 @@ func main() {
 	images := artwork.NewLoader(mediaHTTP)
 	listeners := playing.NewService(accounts, profiles)
 	playingCollage := playing.NewCollage(listeners, profiles, messenger, images, renderer)
-	groupMessages := handler.NewGroup(messenger, rankings, profiles, choices, playingCollage)
+	artistTop := top.NewService(accounts, profiles, profiles, func() time.Time {
+		return time.Now().In(groupTimezone)
+	})
+	groupMessages := handler.NewGroup(messenger, rankings, profiles, choices, playingCollage, artistTop)
 	messages := handler.NewRouter(privateMessages, groupMessages)
 	telegramWebhook := webhook.New(cfg.Telegram.WebhookSecret, cfg.Telegram.GroupID, messages, groupMessages, logger)
 	server := httpserver.New(cfg.Port, telegramWebhook)
