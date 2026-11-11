@@ -73,7 +73,7 @@ func main() {
 	images := artwork.NewLoader(mediaHTTP)
 	listeners := playing.NewService(accounts, profiles)
 	playingCollage := playing.NewCollage(listeners, profiles, messenger, images, renderer)
-	groupTop := top.NewService(accounts, profiles, profiles, func() time.Time {
+	groupTop := top.NewService(accounts, profiles, profiles, profiles, func() time.Time {
 		return time.Now().In(groupTimezone)
 	})
 	groupMessages := handler.NewGroup(messenger, rankings, profiles, choices, playingCollage, groupTop)

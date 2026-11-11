@@ -11,6 +11,38 @@ import (
 	"github.com/emount4/lastfm/internal/domain"
 )
 
+func (c *Client) TotalScrobbles(ctx context.Context, username string) (int64, error) {
+	var response profileResponse
+	if err := c.get(ctx, "user.getInfo", url.Values{"user": {username}}, &response); err != nil {
+		return 0, fmt.Errorf("read profile scrobble count: %w", err)
+	}
+	return parseScrobbleCount(response.User.PlayCount)
+}
+
+func (c *Client) ScrobblesInRange(ctx context.Context, username string, interval domain.ScrobbleRange) (int64, error) {
+	// Проверено на Last.fm: from включается в диапазон, to исключается.
+	params := url.Values{
+		"user": {username}, "limit": {"1"},
+		"from": {strconv.FormatInt(interval.From, 10)}, "to": {strconv.FormatInt(interval.To, 10)},
+	}
+	var response recentTracksResponse
+	if err := c.get(ctx, "user.getRecentTracks", params, &response); err != nil {
+		return 0, fmt.Errorf("read scrobble count for period: %w", err)
+	}
+	return parseScrobbleCount(response.RecentTracks.Pagination.Total)
+}
+
+func parseScrobbleCount(value json.Number) (int64, error) {
+	count, err := value.Int64()
+	if err != nil {
+		return 0, fmt.Errorf("parse scrobble count: %w", err)
+	}
+	if count < 0 {
+		return 0, fmt.Errorf("invalid scrobble count %d", count)
+	}
+	return count, nil
+}
+
 func (c *Client) ScrobblesPage(ctx context.Context, username string, interval domain.ScrobbleRange, page int) ([]domain.Scrobble, bool, error) {
 	// Last.fm описывает from как исключающую границу. Сдвигаем её на секунду и проверяем диапазон после чтения.
 	params := url.Values{

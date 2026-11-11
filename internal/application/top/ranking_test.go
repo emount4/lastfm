@@ -45,7 +45,7 @@ func TestArtistsRanksAcrossAllCompleteCharts(t *testing.T) {
 		{LastFMUsername: "second"},
 		{LastFMUsername: "partial"},
 	}}
-	got, err := NewService(fixture, fixture, nil, nil).Rank(t.Context(), domain.Artist, domain.Period{})
+	got, err := NewService(fixture, fixture, nil, nil, nil).Rank(t.Context(), domain.Artist, domain.Period{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestArtistsPeriodUsesOneWindowForAllProfiles(t *testing.T) {
 		return []domain.Scrobble{{Artist: "shared artist"}, {Artist: "Other Artist"}}, false, nil
 	})
 
-	service := NewService(participants, nil, reader, func() time.Time {
+	service := NewService(participants, nil, reader, nil, func() time.Time {
 		clockCalls++
 		return now
 	})
@@ -117,7 +117,7 @@ func TestRankTracksAndAlbumsByArtistAndTitle(t *testing.T) {
 			{Artist: "Artist A", Track: "No album"},
 		}, false, nil
 	})
-	service := NewService(fixture, nil, reader, time.Now)
+	service := NewService(fixture, nil, reader, nil, time.Now)
 	for _, test := range []struct {
 		kind domain.MusicKind
 		want []domain.ChartEntry

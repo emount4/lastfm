@@ -16,7 +16,8 @@ func (e *apiError) Error() string {
 
 type profileResponse struct {
 	User struct {
-		Name string `json:"name"`
+		Name      string      `json:"name"`
+		PlayCount json.Number `json:"playcount"`
 	} `json:"user"`
 }
 
@@ -30,6 +31,7 @@ type recentTracksResponse struct {
 type pagination struct {
 	Page       json.Number `json:"page"`
 	TotalPages json.Number `json:"totalPages"`
+	Total      json.Number `json:"total"`
 }
 
 type recentTrack struct {

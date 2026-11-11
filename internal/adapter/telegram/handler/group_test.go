@@ -27,10 +27,17 @@ func (f rankerFunc) Rank(ctx context.Context, target domain.MusicTarget) (who.Ra
 	return f(ctx, target)
 }
 
-type topFunc func(context.Context, domain.MusicKind, domain.Period) (top.Ranking, error)
+type topStub struct {
+	music func(context.Context, domain.MusicKind, domain.Period) (top.Ranking, error)
+	users func(context.Context, domain.Period) (top.UserRanking, error)
+}
 
-func (f topFunc) Rank(ctx context.Context, kind domain.MusicKind, period domain.Period) (top.Ranking, error) {
-	return f(ctx, kind, period)
+func (s topStub) Rank(ctx context.Context, kind domain.MusicKind, period domain.Period) (top.Ranking, error) {
+	return s.music(ctx, kind, period)
+}
+
+func (s topStub) Users(ctx context.Context, period domain.Period) (top.UserRanking, error) {
+	return s.users(ctx, period)
 }
 
 func TestGroupInfoThroughWebhook(t *testing.T) {
@@ -42,6 +49,7 @@ func TestGroupInfoThroughWebhook(t *testing.T) {
 		wantText string
 		target   domain.MusicTarget
 		topKind  domain.MusicKind
+		topUsers bool
 		period   string
 	}{
 		{name: "case insensitive in allowed group", text: " InFo ", chatID: -100123, wantText: "https://t.me/example_bot"},
@@ -70,6 +78,9 @@ func TestGroupInfoThroughWebhook(t *testing.T) {
 			wantText: "Топ 25 треков за 3m:\n\n1. <b>A &amp; B — Song</b> ➠ <b>121</b>"},
 		{name: "invalid period", text: "topart 0w", chatID: -100123, wantText: "Укажи период"},
 		{name: "invalid album period", text: "topalb 0w", chatID: -100123, wantText: "например topalb 10d"},
+		{name: "group user top", text: " ToPUsErS 7D ", chatID: -100123, topUsers: true, period: "7d",
+			wantText: "Топ 25 слушателей за 7d:\n\n1. <b>Анна &amp; Ко</b> ➠ <b>500</b>\n2. <b>listener</b> ➠ <b>42</b>"},
+		{name: "invalid user period", text: "topusers 0w", chatID: -100123, wantText: "например topusers 10d"},
 	}
 
 	for _, tt := range tests {
@@ -103,7 +114,7 @@ func TestGroupInfoThroughWebhook(t *testing.T) {
 					}
 					wantParseMode := ""
 					command := strings.ToLower(strings.TrimSpace(tt.text))
-					if tt.topKind != "" || command == "info" || strings.HasPrefix(command, "wk") {
+					if tt.topKind != "" || tt.topUsers || command == "info" || strings.HasPrefix(command, "wk") {
 						wantParseMode = "HTML"
 					}
 					if payload.ParseMode != wantParseMode {
@@ -129,7 +140,7 @@ func TestGroupInfoThroughWebhook(t *testing.T) {
 					Total: 49,
 				}, nil
 			})
-			groupTop := topFunc(func(_ context.Context, kind domain.MusicKind, period domain.Period) (top.Ranking, error) {
+			groupTop := topStub{music: func(_ context.Context, kind domain.MusicKind, period domain.Period) (top.Ranking, error) {
 				if kind != tt.topKind || period.String() != tt.period {
 					t.Fatalf("unexpected group top request with kind %q and period %q", kind, period.String())
 				}
@@ -139,7 +150,19 @@ func TestGroupInfoThroughWebhook(t *testing.T) {
 					ProfilesIncluded: 2,
 					ProfilesTotal:    3,
 				}, nil
-			})
+			}, users: func(_ context.Context, period domain.Period) (top.UserRanking, error) {
+				if !tt.topUsers || period.String() != tt.period {
+					t.Fatalf("unexpected user ranking request with period %q", period.String())
+				}
+				return top.UserRanking{
+					Entries: []top.UserEntry{
+						{Participant: domain.Participant{TelegramDisplayName: " Анна & Ко ", TelegramUsername: "anna"}, Scrobbles: 500},
+						{Participant: domain.Participant{TelegramUsername: "listener"}, Scrobbles: 42},
+					},
+					ProfilesIncluded: 2,
+					ProfilesTotal:    2,
+				}, nil
+			}}
 			group := handler.NewGroup(client.New(httpClient, "123:test-token"), ranker, nil, nil, nil, groupTop)
 			messages := handler.NewRouter(private, group)
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))

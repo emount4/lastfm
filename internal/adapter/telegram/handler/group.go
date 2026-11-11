@@ -70,6 +70,8 @@ func (h *Group) HandleMessage(ctx context.Context, message webhook.IncomingMessa
 		return h.sendTop(ctx, message, "toptrk", args, domain.Track, "треков")
 	case "topalb":
 		return h.sendTop(ctx, message, "topalb", args, domain.Album, "альбомов")
+	case "topusers":
+		return h.sendTopUsers(ctx, message, args)
 	}
 	return nil
 }
@@ -91,7 +93,8 @@ func (h *Group) sendHelp(ctx context.Context, message webhook.IncomingMessage) e
 <code>topart</code> — артисты
 <code>toptrk</code> — треки
 <code>topalb</code> — альбомы
-Топы считаются по сумме скробблов участников. Без периода считаем за всё время.
+<code>topusers</code> — кто больше всего слушал по числу скробблов
+Без периода считаем за всё время.
 Примеры периодов: <code>10d</code> — 10 дней, <code>2w</code> — 2 недели, <code>3m</code> — 3 месяца, <code>2y</code> — 2 года. Например, <code>topalb 3m</code>.
 
 <b>Регистрация</b>
@@ -153,10 +156,7 @@ func formatRanking(title string, ranking who.Ranking) string {
 		return reply.String()
 	}
 	for _, entry := range ranking.Entries {
-		name := strings.TrimSpace(entry.Participant.TelegramDisplayName)
-		if name == "" {
-			name = entry.Participant.TelegramUsername
-		}
+		name := entry.Participant.TelegramName()
 		fmt.Fprintf(&reply, "<b>%d</b> ➠ %s\n", entry.Scrobbles, html.EscapeString(name))
 	}
 	fmt.Fprintf(&reply, "\nВсего скробблов: %d", ranking.Total)

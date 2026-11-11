@@ -37,11 +37,12 @@ type Service struct {
 	participants ParticipantReader
 	charts       ChartReader
 	scrobbles    ScrobbleReader
+	counts       ScrobbleCounter
 	now          func() time.Time
 }
 
-func NewService(participants ParticipantReader, charts ChartReader, scrobbles ScrobbleReader, now func() time.Time) *Service {
-	return &Service{participants: participants, charts: charts, scrobbles: scrobbles, now: now}
+func NewService(participants ParticipantReader, charts ChartReader, scrobbles ScrobbleReader, counts ScrobbleCounter, now func() time.Time) *Service {
+	return &Service{participants: participants, charts: charts, scrobbles: scrobbles, counts: counts, now: now}
 }
 
 // Rank суммирует скробблы участников за выбранный период и возвращает до 25 лидеров.
@@ -86,26 +87,9 @@ func (s *Service) Rank(ctx context.Context, kind domain.MusicKind, period domain
 		return Ranking{}, fmt.Errorf("list participants for %s chart: %w", kind, err)
 	}
 
-	type profileChart struct {
-		entries map[chartKey]domain.ChartEntry
-		err     error
-	}
-	profiles := make([]profileChart, len(participants))
-	slots := make(chan struct{}, 3)
-	var requests sync.WaitGroup
-	for index, participant := range participants {
-		requests.Go(func() {
-			select {
-			case slots <- struct{}{}:
-				defer func() { <-slots }()
-			case <-ctx.Done():
-				profiles[index].err = ctx.Err()
-				return
-			}
-			profiles[index].entries, profiles[index].err = readChartPages(ctx, participant.LastFMUsername, readPage)
-		})
-	}
-	requests.Wait()
+	profiles := readProfiles(ctx, participants, func(ctx context.Context, username string) (map[chartKey]domain.ChartEntry, error) {
+		return readChartPages(ctx, username, readPage)
+	})
 
 	ranking := Ranking{ProfilesTotal: len(participants)}
 	totals := make(map[chartKey]domain.ChartEntry)
@@ -116,7 +100,7 @@ func (s *Service) Rank(ctx context.Context, kind domain.MusicKind, period domain
 			continue
 		}
 		ranking.ProfilesIncluded++
-		for _, entry := range profile.entries {
+		for _, entry := range profile.value {
 			addScrobbles(totals, entry)
 		}
 	}
@@ -138,6 +122,31 @@ func (s *Service) Rank(ctx context.Context, kind domain.MusicKind, period domain
 	})
 	ranking.Entries = ranking.Entries[:min(Limit, len(ranking.Entries))]
 	return ranking, nil
+}
+
+type profileResult[T any] struct {
+	value T
+	err   error
+}
+
+func readProfiles[T any](ctx context.Context, participants []domain.Participant, read func(context.Context, string) (T, error)) []profileResult[T] {
+	profiles := make([]profileResult[T], len(participants))
+	slots := make(chan struct{}, 3)
+	var requests sync.WaitGroup
+	for index, participant := range participants {
+		requests.Go(func() {
+			select {
+			case slots <- struct{}{}:
+				defer func() { <-slots }()
+			case <-ctx.Done():
+				profiles[index].err = ctx.Err()
+				return
+			}
+			profiles[index].value, profiles[index].err = read(ctx, participant.LastFMUsername)
+		})
+	}
+	requests.Wait()
+	return profiles
 }
 
 type pageReader func(context.Context, string, int) ([]domain.ChartEntry, bool, error)
