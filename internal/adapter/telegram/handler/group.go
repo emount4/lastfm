@@ -30,14 +30,14 @@ type Group struct {
 	search   MusicSearcher
 	choices  ChoiceStore
 	collage  CollageBuilder
-	top      ArtistTop
+	top      TopRanker
 }
 
 type Ranker interface {
 	Rank(context.Context, domain.MusicTarget) (who.Ranking, error)
 }
 
-func NewGroup(bot GroupBot, rankings Ranker, search MusicSearcher, choices ChoiceStore, collage CollageBuilder, top ArtistTop) *Group {
+func NewGroup(bot GroupBot, rankings Ranker, search MusicSearcher, choices ChoiceStore, collage CollageBuilder, top TopRanker) *Group {
 	return &Group{bot: bot, rankings: rankings, search: search, choices: choices, collage: collage, top: top}
 }
 
@@ -65,26 +65,43 @@ func (h *Group) HandleMessage(ctx context.Context, message webhook.IncomingMessa
 	case "wkalb":
 		return h.rankByTitle(ctx, message, domain.Album, args, "Формат: wkalb название или wkalb артист - альбом")
 	case "topart":
-		return h.sendTopArtists(ctx, message, args)
+		return h.sendTop(ctx, message, "topart", args, domain.Artist, "артистов")
+	case "toptrk":
+		return h.sendTop(ctx, message, "toptrk", args, domain.Track, "треков")
+	case "topalb":
+		return h.sendTop(ctx, message, "topalb", args, domain.Album, "альбомов")
 	}
 	return nil
 }
 
 func (h *Group) sendHelp(ctx context.Context, message webhook.IncomingMessage) error {
-	const help = "Last.fm в этой группе\n\n" +
-		"• info — показать справку\n" +
-		"• playing — кто что слушает сейчас\n" +
-		"• topart — топ артистов группы, например topart 2w\n" +
-		"• wka Radiohead — кто слушал артиста и сколько раз\n" +
-		"• wktrk Creep — скробблы трека\n" +
-		"• wkalb OK Computer — скробблы альбома\n" +
-		"Для точного поиска укажи «артист - название».\n\n"
-	reply := help + "Для регистрации открой личный чат с ботом и отправь свой ник Last.fm."
+	const help = `<b>Last.fm в этой группе</b>
+Пиши команды обычным сообщением без слеша, в любом регистре. <code>info</code> открывает эту справку.
+
+<b>Сейчас играет</b>
+<code>playing</code> — коллаж с треками, которые участники слушают прямо сейчас.
+
+<b>Кто сколько слушал</b>
+<code>wka Radiohead</code> — скробблы артиста по участникам.
+<code>wktrk Radiohead - Creep</code> — скробблы трека.
+<code>wkalb Radiohead - OK Computer</code> — скробблы альбома.
+Под списком бот покажет общую сумму. Можно указать только название, например <code>wktrk Creep</code>. Если есть несколько вариантов, выбери нужный кнопкой.
+
+<b>Топ 25 группы</b>
+<code>topart</code> — артисты
+<code>toptrk</code> — треки
+<code>topalb</code> — альбомы
+Топы считаются по сумме скробблов участников. Без периода считаем за всё время.
+Примеры периодов: <code>10d</code> — 10 дней, <code>2w</code> — 2 недели, <code>3m</code> — 3 месяца, <code>2y</code> — 2 года. Например, <code>topalb 3m</code>.
+
+<b>Регистрация</b>
+Отправь свой ник Last.fm в личный чат с ботом.`
+	reply := help
 	if username, err := h.bot.BotUsername(ctx); err == nil && username != "" {
-		reply = help + "Для регистрации отправь свой ник Last.fm в личный чат с ботом:\nhttps://t.me/" + url.PathEscape(username)
+		reply += "\n<a href=\"https://t.me/" + url.PathEscape(username) + "\">Открыть личный чат</a>"
 	}
 
-	if err := h.bot.SendText(ctx, message.ChatID, message.ThreadID, reply); err != nil {
+	if err := h.bot.SendHTML(ctx, message.ChatID, message.ThreadID, reply); err != nil {
 		return fmt.Errorf("send group help: %w", err)
 	}
 	return nil

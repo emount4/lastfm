@@ -73,10 +73,10 @@ func main() {
 	images := artwork.NewLoader(mediaHTTP)
 	listeners := playing.NewService(accounts, profiles)
 	playingCollage := playing.NewCollage(listeners, profiles, messenger, images, renderer)
-	artistTop := top.NewService(accounts, profiles, profiles, func() time.Time {
+	groupTop := top.NewService(accounts, profiles, profiles, func() time.Time {
 		return time.Now().In(groupTimezone)
 	})
-	groupMessages := handler.NewGroup(messenger, rankings, profiles, choices, playingCollage, artistTop)
+	groupMessages := handler.NewGroup(messenger, rankings, profiles, choices, playingCollage, groupTop)
 	messages := handler.NewRouter(privateMessages, groupMessages)
 	telegramWebhook := webhook.New(cfg.Telegram.WebhookSecret, cfg.Telegram.GroupID, messages, groupMessages, logger)
 	server := httpserver.New(cfg.Port, telegramWebhook)

@@ -11,42 +11,74 @@ import (
 	"github.com/emount4/lastfm/internal/domain"
 )
 
-type artistChartResponse struct {
-	TopArtists struct {
-		Artists []struct {
-			Name      string      `json:"name"`
-			PlayCount json.Number `json:"playcount"`
-		} `json:"artist"`
-		Pagination pagination `json:"@attr"`
-	} `json:"topartists"`
+type chartItem struct {
+	Name      string      `json:"name"`
+	PlayCount json.Number `json:"playcount"`
+	Artist    struct {
+		Name string `json:"name"`
+	} `json:"artist"`
 }
 
-func (c *Client) TopArtistsPage(ctx context.Context, username string, page int) ([]domain.ArtistScrobbles, bool, error) {
+type chartResponse struct {
+	Artists    []chartItem `json:"artist"`
+	Tracks     []chartItem `json:"track"`
+	Albums     []chartItem `json:"album"`
+	Pagination pagination  `json:"@attr"`
+}
+
+func (c *Client) ChartPage(ctx context.Context, username string, kind domain.MusicKind, page int) ([]domain.ChartEntry, bool, error) {
+	var method, root string
+	switch kind {
+	case domain.Artist:
+		method, root = "user.getTopArtists", "topartists"
+	case domain.Track:
+		method, root = "user.getTopTracks", "toptracks"
+	case domain.Album:
+		method, root = "user.getTopAlbums", "topalbums"
+	default:
+		return nil, false, fmt.Errorf("unsupported chart kind %q", kind)
+	}
 	params := url.Values{
 		"user": {username}, "period": {"overall"}, "page": {strconv.Itoa(page)}, "limit": {"500"},
 	}
-	var response artistChartResponse
-	if err := c.get(ctx, "user.getTopArtists", params, &response); err != nil {
-		return nil, false, fmt.Errorf("read artist chart page %d: %w", page, err)
+	var response map[string]chartResponse
+	if err := c.get(ctx, method, params, &response); err != nil {
+		return nil, false, fmt.Errorf("read %s chart page %d: %w", kind, page, err)
 	}
 
-	chart := response.TopArtists
-	more, err := chart.Pagination.hasMore(page, len(chart.Artists))
+	chart := response[root]
+	items := chart.Artists
+	switch kind {
+	case domain.Track:
+		items = chart.Tracks
+	case domain.Album:
+		items = chart.Albums
+	}
+	more, err := chart.Pagination.hasMore(page, len(items))
 	if err != nil {
-		return nil, false, fmt.Errorf("read artist chart pagination: %w", err)
+		return nil, false, fmt.Errorf("read %s chart pagination: %w", kind, err)
 	}
 
-	artists := make([]domain.ArtistScrobbles, 0, len(chart.Artists))
-	for _, artist := range chart.Artists {
-		count, err := artist.PlayCount.Int64()
+	entries := make([]domain.ChartEntry, 0, len(items))
+	for _, item := range items {
+		count, err := item.PlayCount.Int64()
 		if err != nil {
-			return nil, false, fmt.Errorf("read artist play count on page %d: %w", page, err)
+			return nil, false, fmt.Errorf("read %s play count on page %d: %w", kind, page, err)
 		}
-		if name := strings.TrimSpace(artist.Name); name != "" && count > 0 {
-			artists = append(artists, domain.ArtistScrobbles{Name: name, Scrobbles: count})
+		name := strings.TrimSpace(item.Name)
+		if name == "" || count <= 0 {
+			continue
 		}
+		entry := domain.ChartEntry{Artist: name, Scrobbles: count}
+		if kind != domain.Artist {
+			entry.Artist, entry.Title = strings.TrimSpace(item.Artist.Name), name
+			if entry.Artist == "" {
+				continue
+			}
+		}
+		entries = append(entries, entry)
 	}
-	return artists, more, nil
+	return entries, more, nil
 }
 
 func (p pagination) hasMore(page, entries int) (bool, error) {

@@ -21,8 +21,9 @@ type NowPlayingTrack struct {
 	CoverURL string
 }
 
-type ArtistScrobbles struct {
-	Name      string
+type ChartEntry struct {
+	Artist    string
+	Title     string
 	Scrobbles int64
 }
 
