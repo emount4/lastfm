@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+
+	"github.com/emount4/lastfm/internal/adapter/telegram"
 )
 
 type HTTPDoer interface {
@@ -30,6 +32,37 @@ func (c *Client) SendText(ctx context.Context, chatID, threadID int64, text stri
 
 func (c *Client) SendHTML(ctx context.Context, chatID, threadID int64, text string) error {
 	return c.sendText(ctx, chatID, threadID, text, "HTML")
+}
+
+func (c *Client) SendChoices(ctx context.Context, chatID, threadID int64, text string, buttons []telegram.Button) error {
+	payload := struct {
+		ChatID      int64  `json:"chat_id"`
+		ThreadID    int64  `json:"message_thread_id,omitempty"`
+		Text        string `json:"text"`
+		ReplyMarkup struct {
+			Keyboard [][]telegram.Button `json:"inline_keyboard"`
+		} `json:"reply_markup"`
+	}{ChatID: chatID, ThreadID: threadID, Text: text}
+	for _, button := range buttons {
+		payload.ReplyMarkup.Keyboard = append(payload.ReplyMarkup.Keyboard, []telegram.Button{button})
+	}
+	return c.call(ctx, "sendMessage", payload, nil)
+}
+
+func (c *Client) AnswerCallback(ctx context.Context, id, text string) error {
+	payload := struct {
+		ID   string `json:"callback_query_id"`
+		Text string `json:"text,omitempty"`
+	}{ID: id, Text: text}
+	return c.call(ctx, "answerCallbackQuery", payload, nil)
+}
+
+func (c *Client) DeleteMessage(ctx context.Context, chatID, messageID int64) error {
+	payload := struct {
+		ChatID    int64 `json:"chat_id"`
+		MessageID int64 `json:"message_id"`
+	}{ChatID: chatID, MessageID: messageID}
+	return c.call(ctx, "deleteMessage", payload, nil)
 }
 
 func (c *Client) sendText(ctx context.Context, chatID, threadID int64, text, parseMode string) error {

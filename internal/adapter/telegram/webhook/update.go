@@ -1,8 +1,22 @@
 package webhook
 
 type update struct {
-	ID      int64    `json:"update_id"`
+	ID       int64          `json:"update_id"`
+	Message  *message       `json:"message"`
+	Callback *callbackQuery `json:"callback_query"`
+}
+
+type callbackQuery struct {
+	ID      string   `json:"id"`
+	Data    string   `json:"data"`
 	Message *message `json:"message"`
+}
+
+type IncomingCallback struct {
+	ID        string
+	Data      string
+	ChatID    int64
+	MessageID int64
 }
 
 type message struct {

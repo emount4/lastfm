@@ -5,25 +5,39 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/emount4/lastfm/internal/domain"
 )
 
-func TestArtistPlayCount(t *testing.T) {
-	client := NewClient(doFunc(func(req *http.Request) (*http.Response, error) {
-		query := req.URL.Query()
-		if query.Get("method") != "artist.getInfo" || query.Get("username") != "listener" ||
-			query.Get("artist") != "Florence + The Machine" || query.Get("autocorrect") != "1" {
-			t.Fatalf("unexpected Last.fm query: %v", query)
-		}
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Body: io.NopCloser(strings.NewReader(
-				`{"artist":{"stats":{"playcount":"20000000","userplaycount":"42"}}}`,
-			)),
-		}, nil
-	}), "test-key")
-
-	count, err := client.ArtistPlayCount(t.Context(), "listener", "Florence + The Machine")
-	if err != nil || count != 42 {
-		t.Fatalf("count = %d, error = %v, want 42 and nil", count, err)
+func TestPlayCount(t *testing.T) {
+	tests := []struct {
+		kind  domain.MusicKind
+		title string
+		body  string
+	}{
+		{kind: domain.Artist, body: `{"artist":{"stats":{"playcount":"20000000","userplaycount":"42"}}}`},
+		{kind: domain.Track, title: "Dog Days Are Over", body: `{"track":{"playcount":"20000000","userplaycount":"42"}}`},
+		{kind: domain.Album, title: "Lungs", body: `{"album":{"playcount":"20000000","userplaycount":42}}`},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.kind), func(t *testing.T) {
+			client := NewClient(doFunc(func(req *http.Request) (*http.Response, error) {
+				query := req.URL.Query()
+				if query.Get("method") != string(tt.kind)+".getInfo" || query.Get("username") != "listener" ||
+					query.Get("artist") != "Florence + The Machine" || query.Get("autocorrect") != "1" ||
+					tt.kind != domain.Artist && query.Get(string(tt.kind)) != tt.title {
+					t.Fatalf("unexpected Last.fm query: %v", query)
+				}
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(strings.NewReader(tt.body)),
+				}, nil
+			}), "test-key")
+			target := domain.MusicTarget{Kind: tt.kind, Artist: "Florence + The Machine", Title: tt.title}
+			count, err := client.PlayCount(t.Context(), "listener", target)
+			if err != nil || count != 42 {
+				t.Fatalf("count = %d, error = %v, want 42 and nil", count, err)
+			}
+		})
 	}
 }

@@ -66,4 +66,28 @@ func TestParticipantStoreTurso(t *testing.T) {
 	if !slices.Contains(participants, participant) {
 		t.Fatal("Сохранённая привязка отсутствует в списке")
 	}
+
+	choices := NewChoiceStore(tx)
+	options := []domain.MusicTarget{
+		{Kind: domain.Album, Artist: "Первый", Title: "Альбом"},
+		{Kind: domain.Album, Artist: "Второй", Title: "Альбом"},
+	}
+	if err := choices.SaveChoices(ctx, "integration-choice", -100123, 42, options); err != nil {
+		t.Fatalf("Сохранение вариантов: %v", err)
+	}
+	for _, invalid := range []struct {
+		chat  int64
+		index int
+	}{{chat: -100456, index: 1}, {chat: -100123, index: 9}} {
+		if _, _, found, err := choices.TakeChoice(ctx, "integration-choice", invalid.chat, invalid.index); err != nil || found {
+			t.Fatalf("Недопустимый выбор: found=%t, err=%v", found, err)
+		}
+	}
+	target, thread, found, err := choices.TakeChoice(ctx, "integration-choice", -100123, 1)
+	if err != nil || !found || target != options[1] || thread != 42 {
+		t.Fatalf("Выбор альбома: target=%+v, thread=%d, found=%t, err=%v", target, thread, found, err)
+	}
+	if _, _, found, err := choices.TakeChoice(ctx, "integration-choice", -100123, 0); err != nil || found {
+		t.Fatalf("Повторный выбор: found=%t, err=%v", found, err)
+	}
 }

@@ -18,6 +18,10 @@ type MessageHandler interface {
 	HandleMessage(context.Context, IncomingMessage) error
 }
 
+type CallbackHandler interface {
+	HandleCallback(context.Context, IncomingCallback) error
+}
+
 type MessageHandlerFunc func(context.Context, IncomingMessage) error
 
 func (f MessageHandlerFunc) HandleMessage(ctx context.Context, message IncomingMessage) error {
@@ -25,14 +29,15 @@ func (f MessageHandlerFunc) HandleMessage(ctx context.Context, message IncomingM
 }
 
 type Handler struct {
-	secret   []byte
-	groupID  int64
-	messages MessageHandler
-	logger   *slog.Logger
+	secret    []byte
+	groupID   int64
+	messages  MessageHandler
+	callbacks CallbackHandler
+	logger    *slog.Logger
 }
 
-func New(secret string, groupID int64, messages MessageHandler, logger *slog.Logger) *Handler {
-	return &Handler{secret: []byte(secret), groupID: groupID, messages: messages, logger: logger}
+func New(secret string, groupID int64, messages MessageHandler, callbacks CallbackHandler, logger *slog.Logger) *Handler {
+	return &Handler{secret: []byte(secret), groupID: groupID, messages: messages, callbacks: callbacks, logger: logger}
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -58,6 +63,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if query := incoming.Callback; query != nil {
+		if h.callbacks != nil && query.ID != "" && query.Data != "" && query.Message != nil &&
+			query.Message.ID > 0 && h.allowedGroup(query.Message.Chat) {
+			err = h.callbacks.HandleCallback(r.Context(), IncomingCallback{
+				ID: query.ID, Data: query.Data, ChatID: query.Message.Chat.ID, MessageID: query.Message.ID,
+			})
+		}
+		h.finish(w, r, incoming.ID, err)
+		return
+	}
+
 	msg := incoming.Message
 	if msg == nil || msg.ID <= 0 || msg.From == nil || msg.From.ID <= 0 || msg.From.IsBot || strings.TrimSpace(msg.Text) == "" {
 		w.WriteHeader(http.StatusNoContent)
@@ -65,8 +81,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	private := msg.Chat.Type == "private" && msg.Chat.ID == msg.From.ID
-	allowedGroup := msg.Chat.ID == h.groupID && (msg.Chat.Type == "group" || msg.Chat.Type == "supergroup")
-	if !private && !allowedGroup {
+	if !private && !h.allowedGroup(msg.Chat) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -82,8 +97,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		DisplayName: strings.TrimSpace(msg.From.FirstName + " " + msg.From.LastName),
 		Text:        msg.Text,
 	})
+	h.finish(w, r, incoming.ID, err)
+}
+
+func (h *Handler) allowedGroup(chat chat) bool {
+	return chat.ID == h.groupID && (chat.Type == "group" || chat.Type == "supergroup")
+}
+
+func (h *Handler) finish(w http.ResponseWriter, r *http.Request, updateID int64, err error) {
 	if err != nil {
-		h.logger.ErrorContext(r.Context(), "Telegram message handling failed", "update_id", incoming.ID, "error", err)
+		h.logger.ErrorContext(r.Context(), "Telegram update handling failed", "update_id", updateID, "error", err)
 		http.Error(w, "could not handle update", http.StatusInternalServerError)
 		return
 	}

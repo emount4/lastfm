@@ -88,7 +88,7 @@ func TestPrivateRegistrationThroughWebhook(t *testing.T) {
 			})}
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 			messages := handler.NewRegistration(registrar, client.New(httpClient, "123:test-token"), logger)
-			server := httpserver.New(8080, webhook.New("test-secret", -100123, messages, logger))
+			server := httpserver.New(8080, webhook.New("test-secret", -100123, messages, nil, logger))
 			body := fmt.Sprintf(`{"update_id":42,"message":{"message_id":1,"text":%q,"chat":{"id":123,"type":"private"},"from":{"id":123,"username":"tg_example","first_name":"Анна","last_name":"Иванова"}}}`, tt.message)
 			req := httptest.NewRequest(http.MethodPost, "/telegram/webhook", strings.NewReader(body))
 			req.Header.Set("X-Telegram-Bot-Api-Secret-Token", "test-secret")

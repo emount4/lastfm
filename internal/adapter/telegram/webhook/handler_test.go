@@ -67,7 +67,7 @@ func TestTelegramWebhook(t *testing.T) {
 				return tt.handlerErr
 			})
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-			server := httpserver.New(8080, webhook.New(secret, groupID, messages, logger))
+			server := httpserver.New(8080, webhook.New(secret, groupID, messages, nil, logger))
 			req := httptest.NewRequest(tt.method, "/telegram/webhook", strings.NewReader(tt.body))
 			req.Header.Set("X-Telegram-Bot-Api-Secret-Token", tt.secret)
 			response := httptest.NewRecorder()

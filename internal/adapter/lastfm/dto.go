@@ -26,10 +26,30 @@ type recentTracksResponse struct {
 	} `json:"recenttracks"`
 }
 
-type artistInfoResponse struct {
+type personalPlayCount struct {
+	UserPlayCount json.Number `json:"userplaycount"`
+}
+
+type playCountResponse struct {
 	Artist struct {
-		Stats struct {
-			UserPlayCount json.Number `json:"userplaycount"`
-		} `json:"stats"`
+		Stats personalPlayCount `json:"stats"`
 	} `json:"artist"`
+	Track personalPlayCount `json:"track"`
+	Album personalPlayCount `json:"album"`
+}
+
+type musicSearchMatch struct {
+	Name   string `json:"name"`
+	Artist string `json:"artist"`
+}
+
+type musicSearchResponse struct {
+	Results struct {
+		TrackMatches struct {
+			Tracks []musicSearchMatch `json:"track"`
+		} `json:"trackmatches"`
+		AlbumMatches struct {
+			Albums []musicSearchMatch `json:"album"`
+		} `json:"albummatches"`
+	} `json:"results"`
 }

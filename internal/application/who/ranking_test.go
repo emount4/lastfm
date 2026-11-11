@@ -17,7 +17,7 @@ func (f rankingFixture) List(context.Context) ([]domain.Participant, error) {
 	return f.participants, nil
 }
 
-func (f rankingFixture) ArtistPlayCount(_ context.Context, username, _ string) (int64, error) {
+func (f rankingFixture) PlayCount(_ context.Context, username string, _ domain.MusicTarget) (int64, error) {
 	switch username {
 	case "first":
 		return 2, nil
@@ -37,7 +37,7 @@ func TestRankArtistSkipsMissingCountsAndSorts(t *testing.T) {
 		{LastFMUsername: "zero"},
 		{LastFMUsername: "second"},
 	}}
-	got, err := NewArtists(fixture, fixture).RankArtist(t.Context(), "Artist")
+	got, err := NewService(fixture, fixture).Rank(t.Context(), domain.MusicTarget{Kind: domain.Artist, Artist: "Artist"})
 	if err != nil {
 		t.Fatal(err)
 	}
