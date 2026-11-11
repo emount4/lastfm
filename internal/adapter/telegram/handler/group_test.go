@@ -105,7 +105,7 @@ func TestGroupInfoThroughWebhook(t *testing.T) {
 					Total:   42,
 				}, nil
 			})
-			group := handler.NewGroup(client.New(httpClient, "123:test-token"), ranker, nil, nil)
+			group := handler.NewGroup(client.New(httpClient, "123:test-token"), ranker, nil, nil, nil)
 			messages := handler.NewRouter(private, group)
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 			server := httpserver.New(8080, webhook.New("test-secret", -100123, messages, group, logger))

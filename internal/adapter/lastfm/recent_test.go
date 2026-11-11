@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/emount4/lastfm/internal/domain"
 )
 
 func TestCheckScrobbleAccess(t *testing.T) {
@@ -63,5 +65,55 @@ func TestCheckScrobbleAccessWrapsDecodeError(t *testing.T) {
 	var syntaxErr *json.SyntaxError
 	if !errors.As(err, &syntaxErr) {
 		t.Fatalf("expected wrapped JSON syntax error, got %v", err)
+	}
+}
+
+func TestNowPlaying(t *testing.T) {
+	tests := []struct {
+		name   string
+		tracks string
+		want   domain.NowPlayingTrack
+	}{
+		{
+			name: "active track with cover",
+			tracks: `[
+				{"name":"Earlier","artist":{"#text":"Artist"},"date":{"uts":"123"}},
+				{"name":"Current","artist":{"#text":"Artist"},"album":{"#text":"Album"},"@attr":{"nowplaying":"true"},
+				 "image":[{"size":"large","#text":"https://example.com/large"},
+				          {"size":"small","#text":"https://example.com/small"},
+				          {"size":"extralarge","#text":""}]}
+			]`,
+			want: domain.NowPlayingTrack{Artist: "Artist", Title: "Current", Album: "Album", CoverURL: "https://example.com/large"},
+		},
+		{
+			name:   "active track without cover",
+			tracks: `[{"name":"Current","artist":{"#text":"Artist"},"@attr":{"nowplaying":"true"}}]`,
+			want:   domain.NowPlayingTrack{Artist: "Artist", Title: "Current"},
+		},
+		{
+			name:   "completed scrobble",
+			tracks: `[{"name":"Earlier","artist":{"#text":"Artist"},"date":{"uts":"123"}}]`,
+		},
+		{name: "empty history", tracks: `[]`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := NewClient(doFunc(func(req *http.Request) (*http.Response, error) {
+				query := req.URL.Query()
+				if query.Get("method") != "user.getRecentTracks" || query.Get("limit") != "1" ||
+					query.Get("user") != "listener" {
+					t.Fatalf("unexpected Last.fm query: %v", query)
+				}
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(strings.NewReader(`{"recenttracks":{"track":` + tt.tracks + `}}`)),
+				}, nil
+			}), "test-key")
+			got, active, err := client.NowPlaying(t.Context(), "listener")
+			if err != nil || got != tt.want || active != (tt.want.Title != "") {
+				t.Fatalf("track = %+v, active = %t, error = %v, want %+v", got, active, err, tt.want)
+			}
+		})
 	}
 }

@@ -20,6 +20,8 @@ type GroupBot interface {
 	SendChoices(ctx context.Context, chatID, threadID int64, text string, buttons []telegram.Button) error
 	AnswerCallback(ctx context.Context, id, text string) error
 	DeleteMessage(ctx context.Context, chatID, messageID int64) error
+	SendStatus(ctx context.Context, chatID, threadID int64, text string) (int64, error)
+	SendPhoto(ctx context.Context, chatID, threadID int64, photo []byte) error
 }
 
 type Group struct {
@@ -27,14 +29,15 @@ type Group struct {
 	rankings Ranker
 	search   MusicSearcher
 	choices  ChoiceStore
+	collage  CollageBuilder
 }
 
 type Ranker interface {
 	Rank(context.Context, domain.MusicTarget) (who.Ranking, error)
 }
 
-func NewGroup(bot GroupBot, rankings Ranker, search MusicSearcher, choices ChoiceStore) *Group {
-	return &Group{bot: bot, rankings: rankings, search: search, choices: choices}
+func NewGroup(bot GroupBot, rankings Ranker, search MusicSearcher, choices ChoiceStore, collage CollageBuilder) *Group {
+	return &Group{bot: bot, rankings: rankings, search: search, choices: choices, collage: collage}
 }
 
 func (h *Group) HandleMessage(ctx context.Context, message webhook.IncomingMessage) error {
@@ -50,6 +53,10 @@ func (h *Group) HandleMessage(ctx context.Context, message webhook.IncomingMessa
 		if args == "" {
 			return h.sendHelp(ctx, message)
 		}
+	case "playing":
+		if args == "" {
+			return h.sendPlaying(ctx, message)
+		}
 	case "wka":
 		return h.sendRanking(ctx, message, domain.MusicTarget{Kind: domain.Artist, Artist: args}, "Укажи артиста. Например: wka Radiohead")
 	case "wktrk":
@@ -63,6 +70,7 @@ func (h *Group) HandleMessage(ctx context.Context, message webhook.IncomingMessa
 func (h *Group) sendHelp(ctx context.Context, message webhook.IncomingMessage) error {
 	const help = "Last.fm в этой группе\n\n" +
 		"• info — показать справку\n" +
+		"• playing — кто что слушает сейчас\n" +
 		"• wka Radiohead — кто слушал артиста и сколько раз\n" +
 		"• wktrk Creep — скробблы трека\n" +
 		"• wkalb OK Computer — скробблы альбома\n" +
@@ -92,20 +100,25 @@ func splitArtistAndTitle(args string) (string, string) {
 }
 
 func (h *Group) sendRanking(ctx context.Context, message webhook.IncomingMessage, target domain.MusicTarget, usage string) error {
-	reply := usage
 	if target.Artist != "" && (target.Kind == domain.Artist || target.Title != "") {
 		ranking, err := h.rankings.Rank(ctx, target)
 		if err != nil {
 			return fmt.Errorf("rank %s for Telegram: %w", target.Kind, err)
 		}
-		title := target.Artist
-		if target.Title != "" {
-			title += " — " + target.Title
-		}
-		reply = formatRanking(title, ranking)
+		return h.sendRankingResult(ctx, message, target, ranking)
 	}
+	if err := h.bot.SendHTML(ctx, message.ChatID, message.ThreadID, usage); err != nil {
+		return fmt.Errorf("send ranking usage: %w", err)
+	}
+	return nil
+}
 
-	if err := h.bot.SendHTML(ctx, message.ChatID, message.ThreadID, reply); err != nil {
+func (h *Group) sendRankingResult(ctx context.Context, message webhook.IncomingMessage, target domain.MusicTarget, ranking who.Ranking) error {
+	title := target.Artist
+	if target.Title != "" {
+		title += " — " + target.Title
+	}
+	if err := h.bot.SendHTML(ctx, message.ChatID, message.ThreadID, formatRanking(title, ranking)); err != nil {
 		return fmt.Errorf("send %s ranking: %w", target.Kind, err)
 	}
 	return nil

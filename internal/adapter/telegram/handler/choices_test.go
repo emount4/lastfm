@@ -27,6 +27,10 @@ func (f searchFunc) Search(ctx context.Context, kind domain.MusicKind, title str
 	return f(ctx, kind, title)
 }
 
+func (f searchFunc) FindTitleVariants(ctx context.Context, target domain.MusicTarget) ([]domain.MusicTarget, error) {
+	return f(ctx, target.Kind, target.Title)
+}
+
 type choiceFixture struct {
 	id       string
 	chatID   int64
@@ -55,7 +59,7 @@ func TestAlbumChoiceThroughWebhook(t *testing.T) {
 		{Kind: domain.Album, Artist: "B", Title: "Album"},
 	}
 	search := searchFunc(func(_ context.Context, kind domain.MusicKind, title string) ([]domain.MusicTarget, error) {
-		if kind != domain.Album || title != "Album" {
+		if kind != domain.Album || title != "Album.." {
 			t.Fatalf("search = %s %q", kind, title)
 		}
 		return options, nil
@@ -106,13 +110,17 @@ func TestAlbumChoiceThroughWebhook(t *testing.T) {
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"ok":true}`))}, nil
 	})}
 	ranker := rankerFunc(func(_ context.Context, target domain.MusicTarget) (who.Ranking, error) {
+		if target == (domain.MusicTarget{Kind: domain.Album, Artist: "B", Title: "Album.."}) {
+			calls = append(calls, "rank input")
+			return who.Ranking{}, nil
+		}
 		calls = append(calls, "rank")
 		if target != options[1] {
 			t.Fatalf("ranked target = %+v, want %+v", target, options[1])
 		}
 		return who.Ranking{}, nil
 	})
-	group := handler.NewGroup(client.New(telegramHTTP, "123:test-token"), ranker, search, &choiceFixture{})
+	group := handler.NewGroup(client.New(telegramHTTP, "123:test-token"), ranker, search, &choiceFixture{}, nil)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	server := httpserver.New(8080, webhook.New("test-secret", groupID, group, group, logger))
 	deliver := func(body string) {
@@ -125,14 +133,14 @@ func TestAlbumChoiceThroughWebhook(t *testing.T) {
 		}
 	}
 
-	deliver(`{"update_id":41,"message":{"message_id":7,"message_thread_id":15,"text":"wkalb Album","chat":{"id":-100123,"type":"supergroup"},"from":{"id":123}}}`)
-	if !slices.Equal(calls, []string{"choices"}) {
+	deliver(`{"update_id":41,"message":{"message_id":7,"message_thread_id":15,"text":"wkalb B - Album..","chat":{"id":-100123,"type":"supergroup"},"from":{"id":123}}}`)
+	if !slices.Equal(calls, []string{"rank input", "choices"}) {
 		t.Fatalf("calls before choice = %v", calls)
 	}
 	callback := fmt.Sprintf(`{"update_id":42,"callback_query":{"id":"choice","data":%q,"message":{"message_id":8,"chat":{"id":-100123,"type":"supergroup"}}}}`, chosenButton)
 	deliver(callback)
 	deliver(callback)
-	if !slices.Equal(calls, []string{"choices", "answer", "delete", "rank", "result", "answer"}) {
+	if !slices.Equal(calls, []string{"rank input", "choices", "answer", "delete", "rank", "result", "answer"}) {
 		t.Fatalf("calls after choice = %v", calls)
 	}
 }

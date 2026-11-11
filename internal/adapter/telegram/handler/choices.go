@@ -15,6 +15,7 @@ import (
 
 type MusicSearcher interface {
 	Search(context.Context, domain.MusicKind, string) ([]domain.MusicTarget, error)
+	FindTitleVariants(context.Context, domain.MusicTarget) ([]domain.MusicTarget, error)
 }
 
 type ChoiceStore interface {
@@ -24,8 +25,8 @@ type ChoiceStore interface {
 
 func (h *Group) rankByTitle(ctx context.Context, message webhook.IncomingMessage, kind domain.MusicKind, args, usage string) error {
 	artist, title := splitArtistAndTitle(args)
-	if args == "" || artist != "" && title != "" {
-		return h.sendRanking(ctx, message, domain.MusicTarget{Kind: kind, Artist: artist, Title: title}, usage)
+	if artist != "" && title != "" {
+		return h.rankWithTitleVariants(ctx, message, domain.MusicTarget{Kind: kind, Artist: artist, Title: title})
 	}
 
 	query := strings.TrimSpace(strings.Trim(args, "\""))
@@ -45,7 +46,32 @@ func (h *Group) rankByTitle(ctx context.Context, message webhook.IncomingMessage
 	case 1:
 		return h.sendRanking(ctx, message, options[0], usage)
 	}
+	return h.sendChoices(ctx, message, options)
+}
 
+func (h *Group) rankWithTitleVariants(ctx context.Context, message webhook.IncomingMessage, target domain.MusicTarget) error {
+	ranking, err := h.rankings.Rank(ctx, target)
+	if err != nil {
+		return fmt.Errorf("rank %s for Telegram: %w", target.Kind, err)
+	}
+	if len(ranking.Entries) != 0 {
+		return h.sendRankingResult(ctx, message, target, ranking)
+	}
+	options, err := h.search.FindTitleVariants(ctx, target)
+	if err != nil {
+		return fmt.Errorf("find title variants for Telegram: %w", err)
+	}
+	switch len(options) {
+	case 0:
+		return h.sendRankingResult(ctx, message, target, ranking)
+	case 1:
+		return h.sendRanking(ctx, message, options[0], "")
+	default:
+		return h.sendChoices(ctx, message, options)
+	}
+}
+
+func (h *Group) sendChoices(ctx context.Context, message webhook.IncomingMessage, options []domain.MusicTarget) error {
 	id := rand.Text()
 	if err := h.choices.SaveChoices(ctx, id, message.ChatID, message.ThreadID, options); err != nil {
 		return fmt.Errorf("prepare music selection: %w", err)

@@ -13,3 +13,10 @@ type MusicTarget struct {
 	Artist string
 	Title  string
 }
+
+type NowPlayingTrack struct {
+	Artist   string
+	Title    string
+	Album    string
+	CoverURL string
+}

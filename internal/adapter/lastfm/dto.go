@@ -26,6 +26,25 @@ type recentTracksResponse struct {
 	} `json:"recenttracks"`
 }
 
+type recentTrack struct {
+	Name   string `json:"name"`
+	Artist struct {
+		Name string `json:"#text"`
+	} `json:"artist"`
+	Album struct {
+		Name string `json:"#text"`
+	} `json:"album"`
+	Images []trackImage `json:"image"`
+	Attrs  struct {
+		NowPlaying string `json:"nowplaying"`
+	} `json:"@attr"`
+}
+
+type trackImage struct {
+	Size string `json:"size"`
+	URL  string `json:"#text"`
+}
+
 type personalPlayCount struct {
 	UserPlayCount json.Number `json:"userplaycount"`
 }
@@ -52,4 +71,15 @@ type musicSearchResponse struct {
 			Albums []musicSearchMatch `json:"album"`
 		} `json:"albummatches"`
 	} `json:"results"`
+}
+
+type artistTopAlbumsResponse struct {
+	TopAlbums struct {
+		Albums []struct {
+			Name   string `json:"name"`
+			Artist struct {
+				Name string `json:"name"`
+			} `json:"artist"`
+		} `json:"album"`
+	} `json:"topalbums"`
 }

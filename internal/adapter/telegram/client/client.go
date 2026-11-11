@@ -27,11 +27,11 @@ func New(httpClient HTTPDoer, token string) *Client {
 }
 
 func (c *Client) SendText(ctx context.Context, chatID, threadID int64, text string) error {
-	return c.sendText(ctx, chatID, threadID, text, "")
+	return c.sendText(ctx, chatID, threadID, text, "", nil)
 }
 
 func (c *Client) SendHTML(ctx context.Context, chatID, threadID int64, text string) error {
-	return c.sendText(ctx, chatID, threadID, text, "HTML")
+	return c.sendText(ctx, chatID, threadID, text, "HTML", nil)
 }
 
 func (c *Client) SendChoices(ctx context.Context, chatID, threadID int64, text string, buttons []telegram.Button) error {
@@ -65,14 +65,14 @@ func (c *Client) DeleteMessage(ctx context.Context, chatID, messageID int64) err
 	return c.call(ctx, "deleteMessage", payload, nil)
 }
 
-func (c *Client) sendText(ctx context.Context, chatID, threadID int64, text, parseMode string) error {
+func (c *Client) sendText(ctx context.Context, chatID, threadID int64, text, parseMode string, result any) error {
 	payload := struct {
 		ChatID    int64  `json:"chat_id"`
 		ThreadID  int64  `json:"message_thread_id,omitempty"`
 		Text      string `json:"text"`
 		ParseMode string `json:"parse_mode,omitempty"`
 	}{ChatID: chatID, ThreadID: threadID, Text: text, ParseMode: parseMode}
-	return c.call(ctx, "sendMessage", payload, nil)
+	return c.call(ctx, "sendMessage", payload, result)
 }
 
 func (c *Client) BotUsername(ctx context.Context) (string, error) {
@@ -93,13 +93,16 @@ func (c *Client) call(ctx context.Context, method string, payload, result any) e
 	if err != nil {
 		return fmt.Errorf("telegram %s: encode request: %w", method, err)
 	}
+	return c.request(ctx, method, "application/json", bytes.NewReader(body), result)
+}
 
+func (c *Client) request(ctx context.Context, method, contentType string, body io.Reader, result any) error {
 	endpoint := "https://api.telegram.org/bot" + url.PathEscape(c.token) + "/" + method
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, body)
 	if err != nil {
 		return fmt.Errorf("telegram %s: create request: %w", method, err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", contentType)
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {

@@ -14,12 +14,15 @@ import (
 
 	"github.com/tursodatabase/libsql-client-go/libsql"
 
+	"github.com/emount4/lastfm/internal/adapter/artwork"
+	"github.com/emount4/lastfm/internal/adapter/collage"
 	"github.com/emount4/lastfm/internal/adapter/httpserver"
 	"github.com/emount4/lastfm/internal/adapter/lastfm"
 	"github.com/emount4/lastfm/internal/adapter/storage/turso"
 	telegram "github.com/emount4/lastfm/internal/adapter/telegram/client"
 	"github.com/emount4/lastfm/internal/adapter/telegram/handler"
 	"github.com/emount4/lastfm/internal/adapter/telegram/webhook"
+	"github.com/emount4/lastfm/internal/application/playing"
 	"github.com/emount4/lastfm/internal/application/registration"
 	"github.com/emount4/lastfm/internal/application/who"
 	"github.com/emount4/lastfm/internal/config"
@@ -34,6 +37,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	renderer, err := collage.NewRenderer()
+	if err != nil {
+		logger.Error("не удалось подготовить шрифты коллажа", "error", err)
+		os.Exit(1)
+	}
 	connector, err := libsql.NewConnector(cfg.Turso.DatabaseURL, libsql.WithAuthToken(cfg.Turso.AuthToken))
 	if err != nil {
 		logger.Error("invalid Turso configuration", "error", fmt.Errorf("create Turso connector: %w", err))
@@ -49,7 +57,16 @@ func main() {
 	privateMessages := handler.NewRegistration(registrationService, messenger, logger)
 	rankings := who.NewService(accounts, profiles)
 	choices := turso.NewChoiceStore(db)
-	groupMessages := handler.NewGroup(messenger, rankings, profiles, choices)
+	mediaHTTP := &http.Client{
+		Timeout: 3 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	images := artwork.NewLoader(mediaHTTP)
+	listeners := playing.NewService(accounts, profiles)
+	playingCollage := playing.NewCollage(listeners, profiles, messenger, images, renderer)
+	groupMessages := handler.NewGroup(messenger, rankings, profiles, choices, playingCollage)
 	messages := handler.NewRouter(privateMessages, groupMessages)
 	telegramWebhook := webhook.New(cfg.Telegram.WebhookSecret, cfg.Telegram.GroupID, messages, groupMessages, logger)
 	server := httpserver.New(cfg.Port, telegramWebhook)
