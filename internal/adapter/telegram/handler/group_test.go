@@ -42,13 +42,13 @@ func TestGroupInfoThroughWebhook(t *testing.T) {
 		{name: "slash command", text: "/info", chatID: -100123},
 		{name: "artist ranking", text: " WkA\tA & B ", chatID: -100123,
 			target:   domain.MusicTarget{Kind: domain.Artist, Artist: "A & B"},
-			wantText: "Кто слушал «A &amp; B»\n\n<b>42</b> ➠ listener\n\nВсего скробблов: 42"},
+			wantText: "Кто слушал «A &amp; B»\n\n<b>42</b> ➠ Анна &amp; Ко\n<b>7</b> ➠ listener\n\nВсего скробблов: 49"},
 		{name: "track ranking", text: " WkTrK\tA - B - Remix ", chatID: -100123,
 			target:   domain.MusicTarget{Kind: domain.Track, Artist: "A", Title: "B - Remix"},
-			wantText: "Кто слушал «A — B - Remix»\n\n<b>42</b> ➠ listener\n\nВсего скробблов: 42"},
+			wantText: "Кто слушал «A — B - Remix»\n\n<b>42</b> ➠ Анна &amp; Ко\n<b>7</b> ➠ listener\n\nВсего скробблов: 49"},
 		{name: "album ranking", text: "wkalb \"A - B\" - Album", chatID: -100123,
 			target:   domain.MusicTarget{Kind: domain.Album, Artist: "A - B", Title: "Album"},
-			wantText: "Кто слушал «A - B — Album»\n\n<b>42</b> ➠ listener\n\nВсего скробблов: 42"},
+			wantText: "Кто слушал «A - B — Album»\n\n<b>42</b> ➠ Анна &amp; Ко\n<b>7</b> ➠ listener\n\nВсего скробблов: 49"},
 		{name: "missing artist", text: "wka", chatID: -100123, wantText: "Укажи артиста"},
 	}
 
@@ -101,8 +101,11 @@ func TestGroupInfoThroughWebhook(t *testing.T) {
 			ranker := rankerFunc(func(_ context.Context, item domain.MusicTarget) (who.Ranking, error) {
 				target = item
 				return who.Ranking{
-					Entries: []who.Entry{{Participant: domain.Participant{TelegramUsername: "listener"}, Scrobbles: 42}},
-					Total:   42,
+					Entries: []who.Entry{
+						{Participant: domain.Participant{TelegramDisplayName: " Анна & Ко ", TelegramUsername: "anna"}, Scrobbles: 42},
+						{Participant: domain.Participant{TelegramDisplayName: " ", TelegramUsername: "listener"}, Scrobbles: 7},
+					},
+					Total: 49,
 				}, nil
 			})
 			group := handler.NewGroup(client.New(httpClient, "123:test-token"), ranker, nil, nil, nil)

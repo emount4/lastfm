@@ -35,7 +35,7 @@ func (l *Loader) Load(ctx context.Context, address string) (image.Image, error) 
 		return nil, errors.New("load image: invalid image address")
 	}
 	switch strings.ToLower(asset.Hostname()) {
-	case "lastfm.freetls.fastly.net", "lastfm-img2.akamaized.net", "api.telegram.org":
+	case "lastfm-img.freetls.fastly.net", "lastfm.freetls.fastly.net", "lastfm-img2.akamaized.net", "api.telegram.org":
 	default:
 		return nil, errors.New("load image: unsupported host")
 	}

@@ -132,8 +132,8 @@ func formatRanking(title string, ranking who.Ranking) string {
 		return reply.String()
 	}
 	for _, entry := range ranking.Entries {
-		name := entry.Participant.TelegramDisplayName
-		if entry.Participant.TelegramUsername != "" {
+		name := strings.TrimSpace(entry.Participant.TelegramDisplayName)
+		if name == "" {
 			name = entry.Participant.TelegramUsername
 		}
 		fmt.Fprintf(&reply, "<b>%d</b> ➠ %s\n", entry.Scrobbles, html.EscapeString(name))
