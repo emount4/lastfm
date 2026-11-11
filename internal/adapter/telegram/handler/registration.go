@@ -12,10 +12,11 @@ import (
 	"github.com/emount4/lastfm/internal/domain"
 )
 
-const registrationPrompt = "Пришли свой ник Last.fm одним сообщением. Твой ник Telegram и статистика прослушиваний будут видны в группе."
+const registrationPrompt = "Пришли свой ник Last.fm одним сообщением. Твой ник Telegram и статистика прослушиваний будут видны в группе. Чтобы отвязать профиль, отправь unlink."
 
 type Registrar interface {
 	Register(context.Context, domain.Participant) (string, error)
+	Unlink(context.Context, int64) error
 }
 
 type Messenger interface {
@@ -42,6 +43,12 @@ func (h *Registration) HandleMessage(ctx context.Context, message webhook.Incomi
 	switch {
 	case text == "", strings.EqualFold(command, "/start"):
 		return h.reply(ctx, message, registrationPrompt)
+	case strings.EqualFold(text, "unlink"):
+		if err := h.registrar.Unlink(ctx, message.UserID); err != nil {
+			h.logger.ErrorContext(ctx, "Не удалось отвязать профиль", "update_id", message.UpdateID, "error", err)
+			return h.reply(ctx, message, "Не удалось отвязать профиль. Попробуй ещё раз чуть позже.")
+		}
+		return h.reply(ctx, message, "У тебя больше нет привязки Last.fm. Чтобы привязать профиль снова, пришли свой ник.")
 	case strings.HasPrefix(text, "/"):
 		return nil
 	}

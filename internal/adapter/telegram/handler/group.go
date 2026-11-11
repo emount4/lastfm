@@ -95,7 +95,7 @@ func (h *Group) sendHelp(ctx context.Context, message webhook.IncomingMessage) e
 Примеры периодов: <code>10d</code> — 10 дней, <code>2w</code> — 2 недели, <code>3m</code> — 3 месяца, <code>2y</code> — 2 года. Например, <code>topalb 3m</code>.
 
 <b>Регистрация</b>
-Отправь свой ник Last.fm в личный чат с ботом.`
+Отправь свой ник Last.fm в личный чат с ботом. Чтобы убрать свою привязку и выйти из статистики группы, отправь там <code>unlink</code>.`
 	reply := help
 	if username, err := h.bot.BotUsername(ctx); err == nil && username != "" {
 		reply += "\n<a href=\"https://t.me/" + url.PathEscape(username) + "\">Открыть личный чат</a>"

@@ -20,10 +20,17 @@ import (
 	"github.com/emount4/lastfm/internal/domain"
 )
 
-type registrarFunc func(context.Context, domain.Participant) (string, error)
+type registrarStub struct {
+	register func(context.Context, domain.Participant) (string, error)
+	unlink   func(context.Context, int64) error
+}
 
-func (f registrarFunc) Register(ctx context.Context, participant domain.Participant) (string, error) {
-	return f(ctx, participant)
+func (s registrarStub) Register(ctx context.Context, participant domain.Participant) (string, error) {
+	return s.register(ctx, participant)
+}
+
+func (s registrarStub) Unlink(ctx context.Context, userID int64) error {
+	return s.unlink(ctx, userID)
 }
 
 type transportFunc func(*http.Request) (*http.Response, error)
@@ -37,6 +44,8 @@ func TestPrivateRegistrationThroughWebhook(t *testing.T) {
 		name, message, reply string
 		registerErr          error
 		registers            bool
+		unlinks              bool
+		unlinkErr            error
 		sendFails            bool
 	}{
 		{name: "start", message: "/START invite", reply: "Пришли свой ник Last.fm"},
@@ -50,11 +59,13 @@ func TestPrivateRegistrationThroughWebhook(t *testing.T) {
 			registers: true, registerErr: fmt.Errorf("registration: %w", domain.ErrLastFMAccountTaken),
 		},
 		{name: "send failed", message: "example", registers: true, sendFails: true},
+		{name: "unlink", message: " UnLiNk ", reply: "У тебя больше нет привязки Last.fm.", unlinks: true},
+		{name: "unlink failed", message: "unlink", reply: "Не удалось отвязать профиль.", unlinks: true, unlinkErr: errors.New("database unavailable")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			registered, sent := false, false
-			registrar := registrarFunc(func(_ context.Context, participant domain.Participant) (string, error) {
+			registered, unlinked, sent := false, false, false
+			registrar := registrarStub{register: func(_ context.Context, participant domain.Participant) (string, error) {
 				registered = true
 				want := domain.Participant{
 					TelegramUserID: 123, TelegramUsername: "tg_example",
@@ -64,7 +75,13 @@ func TestPrivateRegistrationThroughWebhook(t *testing.T) {
 					t.Fatalf("participant = %+v, want %+v", participant, want)
 				}
 				return "Example", tt.registerErr
-			})
+			}, unlink: func(_ context.Context, userID int64) error {
+				unlinked = true
+				if userID != 123 {
+					t.Fatalf("unlink user ID = %d, want 123", userID)
+				}
+				return tt.unlinkErr
+			}}
 			httpClient := &http.Client{Transport: transportFunc(func(req *http.Request) (*http.Response, error) {
 				sent = true
 				if req.Method != http.MethodPost || req.URL.Host != "api.telegram.org" ||
@@ -99,8 +116,8 @@ func TestPrivateRegistrationThroughWebhook(t *testing.T) {
 			if tt.sendFails {
 				wantStatus = http.StatusInternalServerError
 			}
-			if response.Code != wantStatus || registered != tt.registers || !sent {
-				t.Fatalf("status = %d, registered = %t, sent = %t", response.Code, registered, sent)
+			if response.Code != wantStatus || registered != tt.registers || unlinked != tt.unlinks || !sent {
+				t.Fatalf("status = %d, registered = %t, unlinked = %t, sent = %t", response.Code, registered, unlinked, sent)
 			}
 		})
 	}

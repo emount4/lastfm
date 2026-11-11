@@ -15,8 +15,10 @@ type registrationStub struct {
 	lookupErr   error
 	scrobbleErr error
 	saveErr     error
+	deleteErr   error
 	calls       []string
 	saved       domain.Participant
+	deletedID   int64
 }
 
 func (s *registrationStub) LookupProfile(_ context.Context, username string) (string, bool, error) {
@@ -33,6 +35,23 @@ func (s *registrationStub) Save(_ context.Context, participant domain.Participan
 	s.calls = append(s.calls, "save")
 	s.saved = participant
 	return s.saveErr
+}
+
+func (s *registrationStub) Delete(_ context.Context, userID int64) error {
+	s.deletedID = userID
+	return s.deleteErr
+}
+
+func TestUnlink(t *testing.T) {
+	storeErr := errors.New("database unavailable")
+	stub := &registrationStub{deleteErr: storeErr}
+	service := NewService(nil, stub)
+	if err := service.Unlink(t.Context(), -1); err == nil || stub.deletedID != 0 {
+		t.Fatalf("invalid ID: error = %v, deleted ID = %d", err, stub.deletedID)
+	}
+	if err := service.Unlink(t.Context(), 123); !errors.Is(err, storeErr) || stub.deletedID != 123 {
+		t.Fatalf("error = %v, deleted ID = %d", err, stub.deletedID)
+	}
 }
 
 func TestRegister(t *testing.T) {

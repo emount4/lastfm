@@ -21,6 +21,7 @@ type ProfileVerifier interface {
 
 type AccountStore interface {
 	Save(ctx context.Context, participant domain.Participant) error
+	Delete(ctx context.Context, telegramUserID int64) error
 }
 
 type Service struct {
@@ -60,4 +61,14 @@ func (s *Service) Register(ctx context.Context, participant domain.Participant) 
 		return "", fmt.Errorf("register participant: save account link: %w", err)
 	}
 	return canonicalName, nil
+}
+
+func (s *Service) Unlink(ctx context.Context, telegramUserID int64) error {
+	if telegramUserID <= 0 {
+		return errors.New("unlink participant: invalid Telegram user ID")
+	}
+	if err := s.accounts.Delete(ctx, telegramUserID); err != nil {
+		return fmt.Errorf("unlink participant: %w", err)
+	}
+	return nil
 }

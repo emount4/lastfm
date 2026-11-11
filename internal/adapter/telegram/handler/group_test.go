@@ -48,6 +48,7 @@ func TestGroupInfoThroughWebhook(t *testing.T) {
 		{name: "fallback without username", text: "info", chatID: -100123, getMeErr: errors.New("unavailable"), wantText: "<b>Регистрация</b>\nОтправь свой ник Last.fm в личный чат с ботом."},
 		{name: "other group", text: "info", chatID: -100456},
 		{name: "ordinary conversation", text: "что такое info?", chatID: -100123},
+		{name: "unlink in group", text: "unlink", chatID: -100123},
 		{name: "slash command", text: "/info", chatID: -100123},
 		{name: "artist ranking", text: " WkA\tA & B ", chatID: -100123,
 			target:   domain.MusicTarget{Kind: domain.Artist, Artist: "A & B"},
