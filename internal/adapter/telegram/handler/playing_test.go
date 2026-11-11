@@ -88,7 +88,7 @@ func TestPlayingRemovesStatusBeforeReply(t *testing.T) {
 				calls = append(calls, "build")
 				return playing.CollageResult{Photo: tt.photo, ListenerCount: tt.count}, nil
 			})
-			group := handler.NewGroup(client.New(httpClient, "123:test-token"), nil, nil, nil, builder, nil)
+			group := handler.NewGroup(client.New(httpClient, "123:test-token"), nil, nil, nil, builder, nil, nil)
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 			server := httpserver.New(8080, webhook.New("test-secret", -100123, group, group, logger))
 			const body = `{"update_id":42,"message":{"message_id":7,"message_thread_id":15,"text":" PlAyInG ","chat":{"id":-100123,"type":"supergroup"},"from":{"id":123}}}`

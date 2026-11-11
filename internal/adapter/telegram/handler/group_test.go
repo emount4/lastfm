@@ -32,6 +32,12 @@ type topStub struct {
 	users func(context.Context, domain.Period) (top.UserRanking, error)
 }
 
+type vibeFunc func(context.Context, int64, int) (string, error)
+
+func (f vibeFunc) Describe(ctx context.Context, userID int64, days int) (string, error) {
+	return f(ctx, userID, days)
+}
+
 func (s topStub) Rank(ctx context.Context, kind domain.MusicKind, period domain.Period) (top.Ranking, error) {
 	return s.music(ctx, kind, period)
 }
@@ -50,12 +56,17 @@ func TestGroupInfoThroughWebhook(t *testing.T) {
 		target   domain.MusicTarget
 		topKind  domain.MusicKind
 		topUsers bool
+		vibeDays int
 		period   string
 	}{
 		{name: "case insensitive in allowed group", text: " InFo ", chatID: -100123, wantText: "https://t.me/example_bot"},
 		{name: "fallback without username", text: "info", chatID: -100123, getMeErr: errors.New("unavailable"), wantText: "<b>Регистрация</b>\nОтправь свой ник Last.fm в личный чат с ботом."},
 		{name: "other group", text: "info", chatID: -100456},
 		{name: "ordinary conversation", text: "что такое info?", chatID: -100123},
+		{name: "ordinary vibe word", text: "вайб", chatID: -100123},
+		{name: "vibe today", text: "СкРоБбОвАйБ", chatID: -100123, vibeDays: 1, wantText: "<b>Твой скроббовайб сегодня</b>\n\nТрек &amp; репит"},
+		{name: "vibe period", text: "скроббовайб 3D", chatID: -100123, vibeDays: 3, wantText: "<b>Твой скроббовайб за 3 дн.</b>"},
+		{name: "invalid vibe period", text: "скроббовайб 0d", chatID: -100123, wantText: "Можно указать от 1 до 30 дней."},
 		{name: "unlink in group", text: "unlink", chatID: -100123},
 		{name: "slash command", text: "/info", chatID: -100123},
 		{name: "artist ranking", text: " WkA\tA & B ", chatID: -100123,
@@ -114,7 +125,7 @@ func TestGroupInfoThroughWebhook(t *testing.T) {
 					}
 					wantParseMode := ""
 					command := strings.ToLower(strings.TrimSpace(tt.text))
-					if tt.topKind != "" || tt.topUsers || command == "info" || strings.HasPrefix(command, "wk") {
+					if tt.topKind != "" || tt.topUsers || tt.vibeDays != 0 || command == "info" || strings.HasPrefix(command, "wk") {
 						wantParseMode = "HTML"
 					}
 					if payload.ParseMode != wantParseMode {
@@ -163,7 +174,13 @@ func TestGroupInfoThroughWebhook(t *testing.T) {
 					ProfilesTotal:    2,
 				}, nil
 			}}
-			group := handler.NewGroup(client.New(httpClient, "123:test-token"), ranker, nil, nil, nil, groupTop)
+			listenerVibe := vibeFunc(func(_ context.Context, userID int64, days int) (string, error) {
+				if userID != 123 || days != tt.vibeDays {
+					t.Fatalf("unexpected vibe request for user %d and period %d", userID, days)
+				}
+				return "Трек & репит", nil
+			})
+			group := handler.NewGroup(client.New(httpClient, "123:test-token"), ranker, nil, nil, nil, groupTop, listenerVibe)
 			messages := handler.NewRouter(private, group)
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 			server := httpserver.New(8080, webhook.New("test-secret", -100123, messages, group, logger))

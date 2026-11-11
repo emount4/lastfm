@@ -31,14 +31,15 @@ type Group struct {
 	choices  ChoiceStore
 	collage  CollageBuilder
 	top      TopRanker
+	vibe     VibeDescriber
 }
 
 type Ranker interface {
 	Rank(context.Context, domain.MusicTarget) (who.Ranking, error)
 }
 
-func NewGroup(bot GroupBot, rankings Ranker, search MusicSearcher, choices ChoiceStore, collage CollageBuilder, top TopRanker) *Group {
-	return &Group{bot: bot, rankings: rankings, search: search, choices: choices, collage: collage, top: top}
+func NewGroup(bot GroupBot, rankings Ranker, search MusicSearcher, choices ChoiceStore, collage CollageBuilder, top TopRanker, vibe VibeDescriber) *Group {
+	return &Group{bot: bot, rankings: rankings, search: search, choices: choices, collage: collage, top: top, vibe: vibe}
 }
 
 func (h *Group) HandleMessage(ctx context.Context, message webhook.IncomingMessage) error {
@@ -76,6 +77,8 @@ func (h *Group) HandleMessage(ctx context.Context, message webhook.IncomingMessa
 		return h.sendTop(ctx, message, "topalb", args, domain.Album, "альбомов")
 	case "topusers":
 		return h.sendTopUsers(ctx, message, args)
+	case "скроббовайб":
+		return h.sendVibe(ctx, message, args)
 	}
 	return nil
 }
@@ -100,6 +103,10 @@ func (h *Group) sendHelp(ctx context.Context, message webhook.IncomingMessage) e
 <code>topusers</code> — кто больше всего слушал по числу скробблов
 Без периода считаем за всё время.
 Примеры периодов: <code>10d</code> — 10 дней, <code>2w</code> — 2 недели, <code>3m</code> — 3 месяца, <code>2y</code> — 2 года. Например, <code>topalb 3m</code>.
+
+<b>Скроббовайб</b>
+<code>скроббовайб</code> — шуточное описание по твоим прослушиваниям сегодня.
+<code>скроббовайб 3d</code> — за три календарных дня, включая сегодня. Дни считаем по Москве.
 
 <b>Регистрация</b>
 Отправь свой ник Last.fm в личный чат с ботом. Чтобы убрать свою привязку и выйти из статистики группы, отправь там <code>unlink</code>.`

@@ -19,6 +19,7 @@ import (
 	"github.com/emount4/lastfm/internal/adapter/collage"
 	"github.com/emount4/lastfm/internal/adapter/httpserver"
 	"github.com/emount4/lastfm/internal/adapter/lastfm"
+	"github.com/emount4/lastfm/internal/adapter/openrouter"
 	"github.com/emount4/lastfm/internal/adapter/storage/turso"
 	telegram "github.com/emount4/lastfm/internal/adapter/telegram/client"
 	"github.com/emount4/lastfm/internal/adapter/telegram/handler"
@@ -26,6 +27,7 @@ import (
 	"github.com/emount4/lastfm/internal/application/playing"
 	"github.com/emount4/lastfm/internal/application/registration"
 	"github.com/emount4/lastfm/internal/application/top"
+	"github.com/emount4/lastfm/internal/application/vibe"
 	"github.com/emount4/lastfm/internal/application/who"
 	"github.com/emount4/lastfm/internal/config"
 	"github.com/emount4/lastfm/migrations"
@@ -73,10 +75,17 @@ func main() {
 	images := artwork.NewLoader(mediaHTTP)
 	listeners := playing.NewService(accounts, profiles)
 	playingCollage := playing.NewCollage(listeners, profiles, messenger, images, renderer)
-	groupTop := top.NewService(accounts, profiles, profiles, profiles, func() time.Time {
+	groupNow := func() time.Time {
 		return time.Now().In(groupTimezone)
-	})
-	groupMessages := handler.NewGroup(messenger, rankings, profiles, choices, playingCollage, groupTop)
+	}
+	groupTop := top.NewService(accounts, profiles, profiles, profiles, groupNow)
+	var listenerVibe handler.VibeDescriber
+	if cfg.OpenRouterAPIKey != "" {
+		modelHTTP := &http.Client{Timeout: 12 * time.Second}
+		generator := openrouter.NewClient(modelHTTP, cfg.OpenRouterAPIKey)
+		listenerVibe = vibe.NewService(accounts, profiles, generator, groupNow)
+	}
+	groupMessages := handler.NewGroup(messenger, rankings, profiles, choices, playingCollage, groupTop, listenerVibe)
 	messages := handler.NewRouter(privateMessages, groupMessages)
 	telegramWebhook := webhook.New(cfg.Telegram.WebhookSecret, cfg.Telegram.GroupID, messages, groupMessages, logger)
 	server := httpserver.New(cfg.Port, telegramWebhook)

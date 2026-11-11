@@ -10,10 +10,11 @@ import (
 )
 
 type Config struct {
-	Port         uint16
-	Telegram     Telegram
-	LastFMAPIKey string
-	Turso        Turso
+	Port             uint16
+	Telegram         Telegram
+	LastFMAPIKey     string
+	OpenRouterAPIKey string
+	Turso            Turso
 }
 
 type Telegram struct {
@@ -43,7 +44,8 @@ func Load() (Config, error) {
 			BotToken:      required("TELEGRAM_BOT_TOKEN"),
 			WebhookSecret: required("TELEGRAM_WEBHOOK_SECRET"),
 		},
-		LastFMAPIKey: required("LASTFM_API_KEY"),
+		LastFMAPIKey:     required("LASTFM_API_KEY"),
+		OpenRouterAPIKey: strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY")),
 		Turso: Turso{
 			DatabaseURL: required("TURSO_DATABASE_URL"),
 			AuthToken:   required("TURSO_AUTH_TOKEN"),

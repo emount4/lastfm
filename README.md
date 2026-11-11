@@ -10,6 +10,7 @@ Go-бот для одной группы. Участники отправляю�
 | `toptrk [период]` | Топ 25 треков группы, например `toptrk 2w` |
 | `topalb [период]` | Топ 25 альбомов группы, например `topalb 3m` |
 | `topusers [период]` | Топ 25 слушателей по числу скробблов, например `topusers 7d`. Без периода — за всё время. |
+| `скроббовайб [дни]` | Шуточный портрет по твоим скробблам за сегодня. Например, `скроббовайб 3d` берёт три календарных дня, включая сегодня. Можно указать до 30 дней. |
 | `wka Radiohead` | Скробблы артиста по участникам |
 | `wktrk Radiohead - Creep` | Скробблы трека по участникам |
 | `wkalb Radiohead - OK Computer` | Скробблы альбома по участникам |
@@ -26,6 +27,8 @@ Go-бот для одной группы. Участники отправляю�
 2. В BotFather включи **Allow Groups** и выключи **Group Privacy**. Добавь бота обычным участником в группу, где ему разрешено отправлять сообщения. Если бот уже был в группе при смене **Group Privacy**, удали его из группы и добавь заново. [Telegram Privacy Mode](https://core.telegram.org/bots/features#privacy-mode)
 3. Для Vercel импортируй репозиторий и добавь те же переменные в **Production**, кроме `PORT`. Проверь `GET /healthz` на публичном домене.
 4. Зарегистрируй вебхук по адресу `https://<домен>/telegram/webhook` через `setWebhook`. Передай `TELEGRAM_WEBHOOK_SECRET` как `secret_token` и укажи `allowed_updates` как `["message","callback_query"]`. [Telegram setWebhook](https://core.telegram.org/bots/api#setwebhook)
+
+Для `скроббовайб` добавь `OPENROUTER_API_KEY` в окружение. Бот использует бесплатную Gemma 4 31B и передаёт только сводку по трекам автора команды. [Модель OpenRouter](https://openrouter.ai/google/gemma-4-31b-it:free)
 
 ## Локальный запуск
 

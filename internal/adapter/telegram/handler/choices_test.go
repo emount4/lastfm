@@ -120,7 +120,7 @@ func TestAlbumChoiceThroughWebhook(t *testing.T) {
 		}
 		return who.Ranking{}, nil
 	})
-	group := handler.NewGroup(client.New(telegramHTTP, "123:test-token"), ranker, search, &choiceFixture{}, nil, nil)
+	group := handler.NewGroup(client.New(telegramHTTP, "123:test-token"), ranker, search, &choiceFixture{}, nil, nil, nil)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	server := httpserver.New(8080, webhook.New("test-secret", groupID, group, group, logger))
 	deliver := func(body string) {
