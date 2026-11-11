@@ -39,6 +39,9 @@ func (h *Group) sendVibe(ctx context.Context, message webhook.IncomingMessage, a
 		return reply("За этот период у тебя пока нет скробблов.")
 	case err != nil:
 		slog.ErrorContext(ctx, "Не удалось составить скроббовайб", "update_id", message.UpdateID, "error", err)
+		if errors.Is(err, vibe.ErrRateLimited) {
+			return reply("Сработал лимит запросов к Gemma. Попробуй чуть позже.")
+		}
 		return reply("Не получилось составить скроббовайб. Попробуй чуть позже.")
 	}
 

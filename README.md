@@ -30,6 +30,8 @@ Go-бот для одной группы. Участники отправляю�
 
 Для `скроббовайб` добавь `OPENROUTER_API_KEY` в окружение. Бот использует бесплатную Gemma 4 31B и передаёт только сводку по трекам автора команды. [Модель OpenRouter](https://openrouter.ai/google/gemma-4-31b-it:free)
 
+С `OPENROUTER_FREE_FALLBACK=true` бот при исчерпании общего лимита провайдера Gemma попробует ещё один запрос через `openrouter/free`. OpenRouter подберёт доступную бесплатную модель. [Бесплатные модели OpenRouter](https://openrouter.ai/collections/free-models)
+
 ## Локальный запуск
 
 Нужен Go 1.25+. В PowerShell из корня проекта:

@@ -82,7 +82,7 @@ func main() {
 	var listenerVibe handler.VibeDescriber
 	if cfg.OpenRouterAPIKey != "" {
 		modelHTTP := &http.Client{Timeout: 12 * time.Second}
-		generator := openrouter.NewClient(modelHTTP, cfg.OpenRouterAPIKey)
+		generator := openrouter.NewClient(modelHTTP, cfg.OpenRouterAPIKey, cfg.OpenRouterFreeFallback)
 		listenerVibe = vibe.NewService(accounts, profiles, generator, groupNow)
 	}
 	groupMessages := handler.NewGroup(messenger, rankings, profiles, choices, playingCollage, groupTop, listenerVibe)

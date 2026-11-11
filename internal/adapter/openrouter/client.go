@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	endpoint = "https://openrouter.ai/api/v1/chat/completions"
-	model    = "google/gemma-4-31b-it:free"
+	endpoint          = "https://openrouter.ai/api/v1/chat/completions"
+	gemmaModel        = "google/gemma-4-31b-it:free"
+	freeFallbackModel = "openrouter/free"
 )
 
 type HTTPDoer interface {
@@ -23,12 +24,13 @@ type HTTPDoer interface {
 }
 
 type Client struct {
-	httpClient HTTPDoer
-	apiKey     string
+	httpClient   HTTPDoer
+	apiKey       string
+	freeFallback bool
 }
 
-func NewClient(httpClient HTTPDoer, apiKey string) *Client {
-	return &Client{httpClient: httpClient, apiKey: apiKey}
+func NewClient(httpClient HTTPDoer, apiKey string, freeFallback bool) *Client {
+	return &Client{httpClient: httpClient, apiKey: apiKey, freeFallback: freeFallback}
 }
 
 func (c *Client) Describe(ctx context.Context, summary vibe.Summary) (string, error) {
@@ -40,6 +42,25 @@ func (c *Client) Describe(ctx context.Context, summary vibe.Summary) (string, er
 
 Сводка скробблов:
 `
+	text := prompt + string(data)
+	reply, err := c.complete(ctx, gemmaModel, text)
+	if err == nil {
+		return reply, nil
+	}
+	primaryErr := fmt.Errorf("%s: %w", gemmaModel, err)
+	var limit *rateLimit
+	if !c.freeFallback || !errors.As(err, &limit) || limit.source != "upstream_provider_shared_pool" {
+		return "", primaryErr
+	}
+
+	reply, err = c.complete(ctx, freeFallbackModel, text)
+	if err != nil {
+		return "", errors.Join(primaryErr, fmt.Errorf("%s: %w", freeFallbackModel, err))
+	}
+	return reply, nil
+}
+
+func (c *Client) complete(ctx context.Context, model, text string) (string, error) {
 	payload := struct {
 		Model     string              `json:"model"`
 		Messages  []map[string]string `json:"messages"`
@@ -47,7 +68,7 @@ func (c *Client) Describe(ctx context.Context, summary vibe.Summary) (string, er
 		Reasoning map[string]bool     `json:"reasoning"`
 	}{
 		Model:     model,
-		Messages:  []map[string]string{{"role": "user", "content": prompt + string(data)}},
+		Messages:  []map[string]string{{"role": "user", "content": text}},
 		MaxTokens: 220,
 		Reasoning: map[string]bool{"enabled": false},
 	}
@@ -66,6 +87,9 @@ func (c *Client) Describe(ctx context.Context, summary vibe.Summary) (string, er
 		return "", fmt.Errorf("request OpenRouter completion: %w", err)
 	}
 	defer res.Body.Close()
+	if res.StatusCode == http.StatusTooManyRequests {
+		return "", rateLimitError(res)
+	}
 	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
 		return "", fmt.Errorf("OpenRouter completion: HTTP status %d", res.StatusCode)
 	}
@@ -84,4 +108,30 @@ func (c *Client) Describe(ctx context.Context, summary vibe.Summary) (string, er
 		return "", errors.New("OpenRouter returned an empty completion")
 	}
 	return strings.TrimSpace(result.Choices[0].Message.Content), nil
+}
+
+type rateLimit struct {
+	source  string
+	details string
+}
+
+func (e *rateLimit) Error() string { return e.details }
+func (e *rateLimit) Unwrap() error { return vibe.ErrRateLimited }
+
+func rateLimitError(res *http.Response) error {
+	var failure struct {
+		Error struct {
+			Metadata struct {
+				Provider    string `json:"provider_name"`
+				LimitSource string `json:"limit_source"`
+			} `json:"metadata"`
+		} `json:"error"`
+	}
+	// При пустом или неразбираемом ответе в журнал всё равно попадут статус и заголовки лимита.
+	_ = json.NewDecoder(io.LimitReader(res.Body, 64<<10)).Decode(&failure)
+	meta := failure.Error.Metadata
+	details := fmt.Sprintf("OpenRouter completion: HTTP status %d, provider=%q, limit_source=%q, retry_after=%q, remaining=%q, reset=%q",
+		res.StatusCode, meta.Provider, meta.LimitSource, res.Header.Get("Retry-After"),
+		res.Header.Get("X-RateLimit-Remaining"), res.Header.Get("X-RateLimit-Reset"))
+	return &rateLimit{source: meta.LimitSource, details: details}
 }

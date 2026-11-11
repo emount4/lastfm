@@ -18,6 +18,7 @@ const MaxDays = 30
 var (
 	ErrNotRegistered = errors.New("listener is not registered")
 	ErrNoScrobbles   = errors.New("listener has no scrobbles in the period")
+	ErrRateLimited   = errors.New("vibe generator rate limited")
 )
 
 type ParticipantReader interface {

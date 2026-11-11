@@ -10,11 +10,12 @@ import (
 )
 
 type Config struct {
-	Port             uint16
-	Telegram         Telegram
-	LastFMAPIKey     string
-	OpenRouterAPIKey string
-	Turso            Turso
+	Port                   uint16
+	Telegram               Telegram
+	LastFMAPIKey           string
+	OpenRouterAPIKey       string
+	OpenRouterFreeFallback bool
+	Turso                  Turso
 }
 
 type Telegram struct {
@@ -58,6 +59,14 @@ func Load() (Config, error) {
 			problems = append(problems, errors.New("PORT must be an integer from 1 to 65535"))
 		} else {
 			cfg.Port = uint16(port)
+		}
+	}
+	if rawFallback := strings.TrimSpace(os.Getenv("OPENROUTER_FREE_FALLBACK")); rawFallback != "" {
+		enabled, err := strconv.ParseBool(rawFallback)
+		if err != nil {
+			problems = append(problems, fmt.Errorf("parse OPENROUTER_FREE_FALLBACK: %w", err))
+		} else {
+			cfg.OpenRouterFreeFallback = enabled
 		}
 	}
 
